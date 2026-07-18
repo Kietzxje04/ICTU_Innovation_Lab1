@@ -1,18 +1,21 @@
 {
   "workflow_id": "working-capital-readiness",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "product": "WORKING_CAPITAL",
   "nodes": [
     "EXISTING_CUSTOMER_GATE",
     "PRODUCT_AGENT",
+    "DOCUMENT_CLASSIFIER",
+    "REQUIREMENT_MATRIX",
     "DOCUMENT_COMPLETENESS",
     "FINANCIAL_METRICS",
     "TAX_CONSISTENCY",
+    "CIC_KYC_TOOLS",
     "CREDIT_AGENT",
     "COMPLIANCE_AGENT",
-    "READINESS_RULE_ENGINE",
     "MANDATORY_CRITIC",
     "CITATION_VALIDATOR",
+    "READINESS_RULE_ENGINE",
     "POLICY_GATE"
   ],
   "max_rework": 1

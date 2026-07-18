@@ -35,7 +35,7 @@ def main() -> None:
     )
     route = route_case(case)
     workflow = load_workflow(settings.config_dir / "workflows" / "working_capital.json")
-    assert route.nodes[-3:] == ["MANDATORY_CRITIC", "CITATION_VALIDATOR", "POLICY_GATE"]
+    assert route.nodes[-4:] == ["MANDATORY_CRITIC", "CITATION_VALIDATOR", "READINESS_RULE_ENGINE", "POLICY_GATE"]
     print(json.dumps({"inventory": inventory, "route": route.model_dump(), "workflow": workflow.model_dump()}, ensure_ascii=False, indent=2))
 
 

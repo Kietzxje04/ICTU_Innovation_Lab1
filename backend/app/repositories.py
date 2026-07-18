@@ -8,6 +8,7 @@ from uuid import uuid4
 from nexusops_agent.contracts.case import CaseContext
 from nexusops_agent.contracts.enums import ProductType
 from nexusops_agent.contracts.state import WorkflowState
+from nexusops_agent.nodes.readiness_rules import ReadinessRuleEngine
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -23,22 +24,41 @@ from .schemas import AssessmentRun, Company, ProposedAction
 
 
 def case_context_from_record(record: CaseRecord) -> CaseContext:
-    return CaseContext(
+    context = CaseContext(
         case_id=record.case_id,
         customer_id=record.customer_id,
         existing_customer=record.existing_customer,
         product=ProductType(record.product),
         requested_amount=record.requested_amount,
         relationship_months=record.relationship_months,
-        submitted_documents=record.submitted_documents,
-        required_documents=record.required_documents,
+        submitted_documents=record.submitted_documents or [],
+        required_documents=record.required_documents or [],
         annual_revenue=record.annual_revenue,
         pretax_profit_last_2_years=record.pretax_profit_last_2_years,
         tax_declared_revenue=record.tax_declared_revenue,
+        current_assets=record.current_assets,
+        current_liabilities=record.current_liabilities,
+        total_debt=record.total_debt,
+        total_assets=record.total_assets,
+        operating_cash_flow=record.operating_cash_flow,
+        annual_debt_service=record.annual_debt_service,
+        collateral_ratio=record.collateral_ratio,
+        twelve_month_account_turnover=record.twelve_month_account_turnover,
+        account_history_months=record.account_history_months,
+        twelve_month_credit_turnover=record.twelve_month_credit_turnover,
+        average_monthly_credit_inflow=record.average_monthly_credit_inflow,
+        turnover_stability_ratio=record.turnover_stability_ratio,
+        expected_utilization_ratio=record.expected_utilization_ratio,
+        negative_balance_days=record.negative_balance_days,
+        cleanup_days=record.cleanup_days,
+        overdraft_purpose=record.overdraft_purpose,
+        loan_purpose=record.loan_purpose,
+        account_conduct_flags=record.account_conduct_flags or [],
         cic_bad_debt=record.cic_bad_debt,
-        kyc_aml_flags=record.kyc_aml_flags,
-        metadata=record.case_metadata,
+        kyc_aml_flags=record.kyc_aml_flags or [],
+        metadata=record.case_metadata or {},
     )
+    return ReadinessRuleEngine().canonical_case(context)
 
 
 def input_hash(context: CaseContext) -> str:
@@ -159,7 +179,18 @@ class AssessmentRepository:
                     reasons=result.reasons,
                 )
             )
+        # The agent runtime emits RUNNING and SUCCEEDED events for each node.
+        # Persist the final event per node for the stable API/UI node timeline,
+        # while keeping ordering and failure information deterministic.
+        final_events: dict[str, dict] = {}
+        event_order: list[str] = []
         for event in state.trace:
+            node_id = event["node_id"]
+            if node_id not in final_events:
+                event_order.append(node_id)
+            final_events[node_id] = event
+        for node_id in event_order:
+            event = final_events[node_id]
             timestamp = datetime.fromisoformat(event["timestamp"])
             self.session.add(
                 RunEventRecord(

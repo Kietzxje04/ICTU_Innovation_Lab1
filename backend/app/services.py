@@ -6,6 +6,7 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 
 from .agent_service import AgentService
+from .config import get_settings
 from .exceptions import DomainError
 from .models import AgentArtifactRecord, AssessmentRunRecord, CaseRecord, ProposedActionRecord
 from .repositories import (
@@ -18,6 +19,8 @@ from .repositories import (
     run_schema,
 )
 from .schemas import AgentView, Company, ExecutionRecord, ProposedAction, ResolutionPackage
+from .v3_services import MockActionService
+from nexusops_agent.contracts.state import WorkflowState
 
 
 def _unique(values: list[str]) -> list[str]:
@@ -111,6 +114,29 @@ class AssessmentService:
             return self.runs.get(latest.run_id) or latest
         return self.run(case_id, f"auto-{current_hash}")
 
+    def start_stepwise(self, case_id: str, idempotency_key: str) -> tuple[AssessmentRunRecord, WorkflowState]:
+        case = self.cases.get(case_id)
+        if case is None:
+            raise DomainError(404, "CASE_NOT_FOUND", "Case not found")
+        record = self.runs.create(case_id, idempotency_key, case_context_from_record(case))
+        state = self.agent_service.start(case_context_from_record(case))
+        return record, state
+
+    def execute_step(self, case_id: str, run_id: str, state: WorkflowState, node_id: str) -> tuple[AssessmentRunRecord, WorkflowState]:
+        record = self.get(case_id, run_id)
+        if record.status != "RUNNING":
+            raise DomainError(409, "ASSESSMENT_RUN_NOT_RUNNING", "Assessment run is no longer running")
+        if node_id not in state.route:
+            raise DomainError(400, "WORKFLOW_NODE_NOT_IN_ROUTE", "Node is not in the workflow route")
+        expected = next((node for node in state.route if node not in state.artifacts), None)
+        if expected != node_id:
+            raise DomainError(409, "WORKFLOW_NODE_OUT_OF_ORDER", f"Expected node {expected}, received {node_id}")
+        self.agent_service.run_node(state, node_id)
+        if node_id == state.route[-1]:
+            self.agent_service.finish(state)
+            return self.runs.complete(record, state), state
+        return record, state
+
     def get(self, case_id: str, run_id: str) -> AssessmentRunRecord:
         record = self.runs.get(run_id)
         if record is None or record.case_id != case_id:
@@ -200,15 +226,30 @@ class ActionService:
             raise DomainError(409, "ACTION_ALREADY_REJECTED", "Action was already rejected")
         if record.payload_hash != approved_hash:
             raise DomainError(409, "PAYLOAD_HASH_MISMATCH", "Action payload has changed")
+        if record.created_by == user_id:
+            raise DomainError(409, "MAKER_CHECKER_VIOLATION", "Action maker cannot approve the same action")
         duplicate = self.session.query(ProposedActionRecord).filter_by(execution_idempotency_key=idempotency_key).first()
         if duplicate and duplicate.action_id != action_id:
             raise DomainError(409, "IDEMPOTENCY_KEY_REUSED", "Idempotency key belongs to another action")
+        if not get_settings().enable_mock_apis:
+            raise DomainError(
+                503,
+                "LIVE_CONNECTOR_NOT_CONFIGURED",
+                "Approval is recorded only after a real LOS/DMS/BPM/GRC connector is configured; mock execution is disabled",
+            )
         now = datetime.now(timezone.utc)
+        external = MockActionService(self.session).execute(
+            action_type=record.action_type,
+            case_id=record.case_id,
+            payload=record.payload,
+            idempotency_key=idempotency_key,
+            approved_by=user_id,
+        )
         record.status = "SUCCEEDED"
         record.approved_by = user_id
         record.decision_reason = reason
         record.decided_at = now
-        record.external_ref = f"mock-{record.action_id}"
+        record.external_ref = external.external_ref
         record.execution_status = "SUCCEEDED"
         record.execution_idempotency_key = idempotency_key
         record.executed_at = now

@@ -6,7 +6,8 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 
-MANDATORY_NODES = {"MANDATORY_CRITIC", "CITATION_VALIDATOR", "POLICY_GATE"}
+MANDATORY_NODES = {"MANDATORY_CRITIC", "CITATION_VALIDATOR", "READINESS_RULE_ENGINE", "POLICY_GATE"}
+MANDATORY_TAIL = ["MANDATORY_CRITIC", "CITATION_VALIDATOR", "READINESS_RULE_ENGINE", "POLICY_GATE"]
 
 
 class WorkflowDefinition(BaseModel):
@@ -20,6 +21,8 @@ class WorkflowDefinition(BaseModel):
         missing = MANDATORY_NODES - set(self.nodes)
         if missing:
             raise ValueError(f"Workflow missing mandatory nodes: {sorted(missing)}")
+        if self.nodes[-4:] != MANDATORY_TAIL:
+            raise ValueError(f"Workflow must end with {MANDATORY_TAIL}")
 
 
 def load_workflow(path: Path) -> WorkflowDefinition:

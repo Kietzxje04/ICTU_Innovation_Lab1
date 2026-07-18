@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from .agent_service import AgentService
 from .database import get_session
 from .services import ActionService, AssessmentService, ResolutionService
+from .readiness_service import ReadinessService
 
 
 @lru_cache(maxsize=1)
@@ -32,3 +33,10 @@ def get_action_service(
     resolution: ResolutionService = Depends(get_resolution_service),
 ) -> ActionService:
     return ActionService(session, resolution)
+
+
+def get_readiness_service(
+    session: Session = Depends(get_session),
+    assessments: AssessmentService = Depends(get_assessment_service),
+) -> ReadinessService:
+    return ReadinessService(session, assessments)

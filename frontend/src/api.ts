@@ -1,32 +1,11 @@
-import type { Company } from './data'
+import type { CaseContext, ReadinessCase, WorkflowState } from './domain'
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000').replace(/\/$/, '')
 
 interface ApiResponse<T> {
   data: T
   meta?: Record<string, unknown> | null
-}
-
-export interface ProposedAction {
-  id: string
-  case_id: string
-  type: string
-  payload: Record<string, unknown>
-  payload_hash: string
-  status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'SUCCEEDED'
-  created_by: string
-  approved_by?: string | null
-  decided_at?: string | null
-}
-
-export interface ResolutionPackage {
-  case: Company
-  primary_outcome: string
-  blockers: string[]
-  routes: string[]
-  reason_codes: string[]
-  eligible_actions: string[]
-  proposed_action: ProposedAction
+  error?: { code?: string; message?: string; details?: unknown } | null
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -37,48 +16,73 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...init?.headers,
     },
   })
-
-  if (!response.ok) {
-    throw new Error(`Backend request failed: ${response.status}`)
-  }
-
   const payload = (await response.json()) as ApiResponse<T>
+  if (!response.ok) throw new Error(payload.error?.message ?? `Backend request failed: ${response.status}`)
   return payload.data
 }
 
-export const caseApi = {
-  list: (signal?: AbortSignal) => request<Company[]>('/api/v1/cases', { signal }),
+export interface CreateReadinessCasePayload {
+  context: CaseContext
+  company_name: string
+  owner: string
+}
+
+export interface ProductIntakeSchema {
+  product: CaseContext['product']
+  required_documents: string[]
+  fields: Array<{ name: string; type: string; required: boolean }>
+  rules: Array<Record<string, unknown>>
+  synthetic: boolean
+}
+
+export interface RoutePreview {
+  product: CaseContext['product']
+  required_documents: string[]
+  route: string[]
+  hardness: number
+  reasons: string[]
+}
+
+interface StepwiseRunResponse {
+  run_id: string
+  state: WorkflowState
+  node?: string
+  run_status?: string
+}
+
+export const readinessApi = {
+  list: (signal?: AbortSignal) => request<ReadinessCase[]>('/api/readiness/cases', { signal }),
   get: (caseId: string, signal?: AbortSignal) =>
-    request<Company>(`/api/v1/cases/${encodeURIComponent(caseId)}`, { signal }),
-}
-
-const demoApprovalHeaders = {
-  'Content-Type': 'application/json',
-  'X-User-Id': 'frontend-demo-approver',
-  'X-Role': 'approver',
-}
-
-export const resolutionApi = {
-  get: (caseId: string, signal?: AbortSignal) =>
-    request<ResolutionPackage>(`/api/v1/cases/${encodeURIComponent(caseId)}/resolution-package`, { signal }),
-}
-
-export const actionApi = {
-  list: (caseId: string, signal?: AbortSignal) =>
-    request<ProposedAction[]>(`/api/v1/cases/${encodeURIComponent(caseId)}/actions`, { signal }),
-  approve: (caseId: string, action: ProposedAction) =>
-    request<ProposedAction>(`/api/v1/cases/${encodeURIComponent(caseId)}/actions/${encodeURIComponent(action.id)}/approve`, {
+    request<ReadinessCase>(`/api/readiness/cases/${encodeURIComponent(caseId)}`, { signal }),
+  create: (payload: CreateReadinessCasePayload) =>
+    request<ReadinessCase>('/api/readiness/cases', {
       method: 'POST',
       headers: {
-        ...demoApprovalHeaders,
-        'Idempotency-Key': `approve-${action.id}-${action.payload_hash}`,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': `create-${payload.context.case_id}`,
       },
-      body: JSON.stringify({ approved_payload_hash: action.payload_hash }),
+      body: JSON.stringify(payload),
     }),
-  reject: (caseId: string, action: ProposedAction) =>
-    request<ProposedAction>(`/api/v1/cases/${encodeURIComponent(caseId)}/actions/${encodeURIComponent(action.id)}/reject`, {
+  rerun: async (caseId: string, onNodeResult?: (state: WorkflowState, node: string, index: number) => void | Promise<void>) => {
+    let run = await request<StepwiseRunResponse>(`/api/cases/${encodeURIComponent(caseId)}/workflow-runs`, { method: 'POST' })
+    for (let index = 0; index < run.state.route.length; index += 1) {
+      const node = run.state.route[index]
+      run = await request<StepwiseRunResponse>(`/api/cases/${encodeURIComponent(caseId)}/workflow-runs/${encodeURIComponent(run.run_id)}/nodes/${encodeURIComponent(node)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: run.state }),
+      })
+      await onNodeResult?.(run.state, node, index)
+    }
+    return request<ReadinessCase>(`/api/readiness/cases/${encodeURIComponent(caseId)}`)
+  },
+  productSchema: (product: CaseContext['product'], signal?: AbortSignal) =>
+    request<ProductIntakeSchema>(`/api/v3/products/${product}/intake-schema`, { signal }),
+  previewRoute: (context: CaseContext, signal?: AbortSignal) =>
+    request<RoutePreview>('/api/v3/cases/preview-route', {
       method: 'POST',
-      headers: demoApprovalHeaders,
-      body: JSON.stringify({ reason: 'Chuyển cấp để chuyên viên rà soát' }),
+      signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ context }),
     }),
 }

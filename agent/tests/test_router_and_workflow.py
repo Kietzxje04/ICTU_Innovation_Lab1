@@ -29,7 +29,7 @@ class RouterAndWorkflowTest(unittest.TestCase):
 
     def test_mandatory_tail_is_locked(self) -> None:
         decision = route_case(self.case())
-        self.assertEqual(["MANDATORY_CRITIC", "CITATION_VALIDATOR", "POLICY_GATE"], decision.nodes[-3:])
+        self.assertEqual(["MANDATORY_CRITIC", "CITATION_VALIDATOR", "READINESS_RULE_ENGINE", "POLICY_GATE"], decision.nodes[-4:])
         for name in ("overdraft.json", "working_capital.json"):
             workflow = load_workflow(ROOT / "configs" / "workflows" / name)
             self.assertEqual(1, workflow.max_rework)

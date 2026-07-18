@@ -1,8 +1,89 @@
 {
-  "engines": [
-    {"name": "rules", "kind": "DETERMINISTIC", "enabled": true},
-    {"name": "local_extractor", "kind": "LOCAL_LLM", "model": "qwen2.5:3b", "enabled": false},
-    {"name": "cloud_reasoner", "kind": "CLOUD_LLM", "model": null, "enabled": false},
-    {"name": "mandatory_critic", "kind": "CLOUD_LLM", "model": null, "enabled": false}
-  ]
+  "version": "1.1.0",
+  "provider": {
+    "name": "FPT_AI_FACTORY",
+    "base_url_env": "FPT_AI_BASE_URL",
+    "api_key_env": "FPT_AI_API_KEY",
+    "protocol": "OPENAI_COMPATIBLE",
+    "live_validation_required": true
+  },
+  "selection_principles": [
+    "DETERMINISTIC_FIRST",
+    "SPARSE_AGENT_ROUTING",
+    "STRUCTURED_OUTPUT_REQUIRED",
+    "MODEL_FAMILY_DIVERSITY_FOR_CRITIC",
+    "NO_LLM_FOR_FORMULAS_OR_HARD_RULES",
+    "NO_SECRET_IN_SOURCE_OR_TRACE"
+  ],
+  "roles": {
+    "planner": {
+      "primary_engine": "DETERMINISTIC",
+      "fallback_model": "DeepSeek-V4-Flash",
+      "invoke_when": "AMBIGUOUS_REQUEST_ONLY",
+      "temperature": 0.1,
+      "max_tokens": 1200
+    },
+    "document_classifier": {
+      "primary_model": "SaoLa3.1-medium",
+      "fallback_model": "gpt-oss-20b",
+      "temperature": 0.0,
+      "max_tokens": 1000
+    },
+    "vision_document_extractor": {
+      "primary_model": "Qwen2.5-VL-7B-Instruct",
+      "temperature": 0.0,
+      "max_tokens": 1800
+    },
+    "product_agent": {
+      "primary_model": "SaoLa3.1-medium",
+      "fallback_model": "DeepSeek-V4-Flash",
+      "temperature": 0.1,
+      "max_tokens": 1600
+    },
+    "credit_agent": {
+      "primary_model": "Qwen3.6-27B",
+      "fallback_model": "SaoLa3.1-medium",
+      "temperature": 0.1,
+      "max_tokens": 2800
+    },
+    "compliance_agent": {
+      "primary_model": "Llama-3.3-70B-Instruct",
+      "fallback_model": "SaoLa3.1-medium",
+      "temperature": 0.0,
+      "max_tokens": 2200
+    },
+    "mandatory_critic": {
+      "primary_model": "gpt-oss-120b",
+      "fallback_model": "GLM-5.2",
+      "temperature": 0.0,
+      "max_tokens": 2400,
+      "family_must_differ_from_credit": true
+    },
+    "escalation_reasoner": {
+      "primary_model": "GLM-5.2",
+      "invoke_when": "ONE_REWORK_FAILED_OR_CROSS_DOMAIN_CONFLICT",
+      "temperature": 0.0,
+      "max_tokens": 3000
+    },
+    "embedding": {
+      "primary_model": "Vietnamese_Embedding",
+      "fallback_model": "multilingual-e5-large",
+      "input_prefix_query": "query: ",
+      "input_prefix_passage": "passage: "
+    },
+    "reranker": {
+      "primary_model": "bge-reranker-v2-m3",
+      "top_k_before": 20,
+      "top_k_after": 6
+    }
+  },
+  "out_of_scope_models": {
+    "voice": [
+      "FPT.AI-whisper-medium",
+      "FPT.AI-whisper-large-v3-turbo",
+      "whisper-large-v3-turbo",
+      "FPT.AI-VITs"
+    ],
+    "reason": "Voice is not in the two SME loan-readiness MVP workflows"
+  }
 }

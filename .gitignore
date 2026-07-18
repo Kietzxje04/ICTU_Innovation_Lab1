@@ -26,6 +26,10 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+.venv*/
+**/venv/
+backend/runtime/*.db
+backend/runtime/*.db-*
 
 # Editors and operating systems
 .idea/

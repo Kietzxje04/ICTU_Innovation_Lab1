@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: nexusops-agent
+Version: 0.1.0
+Summary: Hybrid multi-agent layer for NexusOps AI V3.1
+Requires-Python: >=3.11
+Requires-Dist: pydantic<3.0,>=2.7
+Provides-Extra: ai
+Requires-Dist: httpx<1.0,>=0.27; extra == "ai"
+Requires-Dist: langgraph<1.0,>=0.2; extra == "ai"
+Provides-Extra: dev
+Requires-Dist: pytest<9,>=8; extra == "dev"

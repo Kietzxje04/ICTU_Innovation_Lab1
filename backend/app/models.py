@@ -41,6 +41,24 @@ class CaseRecord(Base):
     annual_revenue: Mapped[float | None] = mapped_column(Float, nullable=True)
     pretax_profit_last_2_years: Mapped[list[float]] = mapped_column(JSON, default=list)
     tax_declared_revenue: Mapped[float | None] = mapped_column(Float, nullable=True)
+    current_assets: Mapped[float | None] = mapped_column(Float, nullable=True)
+    current_liabilities: Mapped[float | None] = mapped_column(Float, nullable=True)
+    total_debt: Mapped[float | None] = mapped_column(Float, nullable=True)
+    total_assets: Mapped[float | None] = mapped_column(Float, nullable=True)
+    operating_cash_flow: Mapped[float | None] = mapped_column(Float, nullable=True)
+    annual_debt_service: Mapped[float | None] = mapped_column(Float, nullable=True)
+    collateral_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    twelve_month_account_turnover: Mapped[float | None] = mapped_column(Float, nullable=True)
+    account_history_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    twelve_month_credit_turnover: Mapped[float | None] = mapped_column(Float, nullable=True)
+    average_monthly_credit_inflow: Mapped[float | None] = mapped_column(Float, nullable=True)
+    turnover_stability_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    expected_utilization_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    negative_balance_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cleanup_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    overdraft_purpose: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    loan_purpose: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    account_conduct_flags: Mapped[list[str]] = mapped_column(JSON, default=list)
     cic_bad_debt: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     kyc_aml_flags: Mapped[list[str]] = mapped_column(JSON, default=list)
     case_metadata: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
@@ -140,3 +158,46 @@ class ProposedActionRecord(Base):
     execution_status: Mapped[str] = mapped_column(String(60), default="NOT_STARTED")
     execution_idempotency_key: Mapped[str | None] = mapped_column(String(180), nullable=True, unique=True)
     executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class WorkflowTemplateRecord(Base):
+    __tablename__ = "workflow_templates"
+    __table_args__ = (UniqueConstraint("workflow_id", "version", name="uq_workflow_version"),)
+
+    record_id: Mapped[str] = mapped_column(String(180), primary_key=True)
+    workflow_id: Mapped[str] = mapped_column(String(120), index=True)
+    version: Mapped[str] = mapped_column(String(40))
+    product: Mapped[str] = mapped_column(String(80), index=True)
+    nodes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    max_rework: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(40), default="DRAFT", index=True)
+    definition_hash: Mapped[str] = mapped_column(String(64), index=True)
+    validation_errors: Mapped[list[str]] = mapped_column(JSON, default=list)
+    created_by: Mapped[str] = mapped_column(String(120), default="system")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class EvaluationRunRecord(Base):
+    __tablename__ = "evaluation_runs"
+
+    run_id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    status: Mapped[str] = mapped_column(String(40), default="COMPLETED")
+    scenario_count: Mapped[int] = mapped_column(Integer, default=0)
+    passed: Mapped[int] = mapped_column(Integer, default=0)
+    failed: Mapped[int] = mapped_column(Integer, default=0)
+    report: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class MockExternalActionRecord(Base):
+    __tablename__ = "mock_external_actions"
+
+    external_ref: Mapped[str] = mapped_column(String(160), primary_key=True)
+    idempotency_key: Mapped[str] = mapped_column(String(180), unique=True, index=True)
+    action_type: Mapped[str] = mapped_column(String(120), index=True)
+    case_id: Mapped[str] = mapped_column(String(80), index=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(40), default="SUCCEEDED")
+    approved_by: Mapped[str] = mapped_column(String(120))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

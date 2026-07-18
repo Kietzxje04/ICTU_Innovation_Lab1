@@ -14,4 +14,14 @@ def get_kyc_aml_snapshot(customer_id: str) -> dict[str, object]:
 
 
 def get_account_turnover(customer_id: str) -> dict[str, object]:
-    return {"customer_id": customer_id, "twelve_month_turnover": 12_000_000_000, "source": "MOCK_ACCOUNT_API"}
+    turnover = 12_000_000_000
+    return {
+        "customer_id": customer_id,
+        "twelve_month_turnover": turnover,
+        "twelve_month_credit_turnover": turnover,
+        "average_monthly_credit_inflow": turnover / 12,
+        "turnover_stability_ratio": 0.8,
+        "negative_balance_days": 18,
+        "cleanup_days": 7,
+        "source": "MOCK_ACCOUNT_API",
+    }

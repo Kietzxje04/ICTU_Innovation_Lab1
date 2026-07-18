@@ -3,18 +3,28 @@ from __future__ import annotations
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, Query, Request
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from nexusops_agent.contracts.state import WorkflowState
 
 from .agent_service import AgentService
-from .database import get_session
+from .config import get_settings
+from .database import engine, get_session
 from .dependencies import get_action_service, get_agent_service, get_assessment_service, get_resolution_service
 from .exceptions import DomainError
 from .repositories import AssessmentRepository, CaseRepository, run_schema
 from .schemas import ApiResponse, ApprovalRequest, RejectionRequest
 from .services import ActionService, AssessmentService, ResolutionService, company_projection
+from .readiness_schemas import CreateReadinessCase
+from .readiness_service import ReadinessService
+from .dependencies import get_readiness_service
 
 
 router = APIRouter()
+
+
+class WorkflowStepRequest(BaseModel):
+    state: WorkflowState
 
 
 def response(request: Request, data: object, **meta: object) -> ApiResponse:
@@ -26,7 +36,19 @@ def response(request: Request, data: object, **meta: object) -> ApiResponse:
 
 @router.get("/health", response_model=ApiResponse)
 def health(request: Request, agent: AgentService = Depends(get_agent_service)) -> ApiResponse:
-    return response(request, {"status": "ok", "service": "nexusops-backend", "agent": agent.health()})
+    settings = get_settings()
+    return response(
+        request,
+        {
+            "status": "ok",
+            "service": "nexusops-backend",
+            "database": {
+                "dialect": engine.dialect.name,
+                "seed_demo_data": settings.seed_demo_data,
+            },
+            "agent": agent.health(),
+        },
+    )
 
 
 @router.get("/api/agent/health", response_model=ApiResponse)
@@ -54,6 +76,41 @@ def list_cases(
         loaded = runs.get(latest.run_id) if latest else None
         items.append(company_projection(record, loaded).model_dump())
     return response(request, items, total=len(records))
+
+
+@router.get("/api/readiness/cases", response_model=ApiResponse)
+def list_readiness_cases(
+    request: Request,
+    q: str | None = Query(default=None),
+    product: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    readiness: ReadinessService = Depends(get_readiness_service),
+) -> ApiResponse:
+    items, total = readiness.list_page(q=q, product=product, status=status, limit=limit, offset=offset)
+    return response(request, [item.model_dump(mode="json") for item in items], total=total, limit=limit, offset=offset)
+
+
+@router.post("/api/readiness/cases", response_model=ApiResponse, status_code=201)
+def create_readiness_case(
+    request: Request,
+    body: CreateReadinessCase,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    readiness: ReadinessService = Depends(get_readiness_service),
+) -> ApiResponse:
+    item = readiness.create(body, idempotency_key)
+    return response(request, item.model_dump(mode="json"), case_id=item.id)
+
+
+@router.get("/api/readiness/cases/{case_id}", response_model=ApiResponse)
+def get_readiness_case(
+    request: Request,
+    case_id: str,
+    readiness: ReadinessService = Depends(get_readiness_service),
+) -> ApiResponse:
+    item = readiness.get(case_id)
+    return response(request, item.model_dump(mode="json"))
 
 
 @router.get("/api/cases/{case_id}", response_model=ApiResponse)
@@ -86,6 +143,34 @@ def rerun_assessment(
 ) -> ApiResponse:
     record = assessments.run(case_id, f"rerun-{uuid4().hex}")
     return response(request, run_schema(record).model_dump(mode="json"), run_id=record.run_id)
+
+
+@router.post("/api/cases/{case_id}/workflow-runs", response_model=ApiResponse)
+def start_workflow_run(
+    request: Request,
+    case_id: str,
+    assessments: AssessmentService = Depends(get_assessment_service),
+) -> ApiResponse:
+    record, state = assessments.start_stepwise(case_id, f"stepwise-{uuid4().hex}")
+    return response(request, {"run_id": record.run_id, "state": state.model_dump(mode="json")}, run_id=record.run_id)
+
+
+@router.post("/api/cases/{case_id}/workflow-runs/{run_id}/nodes/{node_id}", response_model=ApiResponse)
+def execute_workflow_node(
+    request: Request,
+    case_id: str,
+    run_id: str,
+    node_id: str,
+    body: WorkflowStepRequest,
+    assessments: AssessmentService = Depends(get_assessment_service),
+) -> ApiResponse:
+    record, state = assessments.execute_step(case_id, run_id, body.state, node_id)
+    return response(
+        request,
+        {"run_id": record.run_id, "run_status": record.status, "node": node_id, "state": state.model_dump(mode="json")},
+        run_id=record.run_id,
+        node=node_id,
+    )
 
 
 @router.get("/api/cases/{case_id}/assessment-runs", response_model=ApiResponse)

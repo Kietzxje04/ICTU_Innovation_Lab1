@@ -1,59 +1,67 @@
-# NexusOps AI — Agent Layer
+# NexusOps AI - Agent Layer
 
-Agent Layer cho `NexusOps AI V3.1 – Visual Hybrid-Agent Studio for SME Loan Readiness`.
+## Live mode
 
-## Phạm vi
+Đặt `NEXUSOPS_AI_MODE=live` và `NEXUSOPS_DEMO_MODE=false`. Live runtime sử dụng FPT AI Factory cho Product/Credit/Compliance/Critic, FPT reranker cho RAG và giữ deterministic hard-rule fallback có ghi warning khi provider timeout. Fallback này không dùng dữ liệu mock.
 
-- Hai workflow: Corporate Overdraft và Working Capital.
-- Hybrid agents: deterministic nodes, local-LLM adapters và cloud-LLM adapters.
-- Planner/router chỉ gọi specialist cần thiết.
-- Mandatory Critic luôn chạy trước kết quả cuối.
-- RAG tách namespace AML, Lending, Demo Policy và Quarantine.
-- Citation Validator kiểm exact quote, content hash, authority, quality và validity.
-- Không phê duyệt/từ chối khoản vay; chỉ tạo readiness artifacts và đề xuất HITL.
+```powershell
+$env:NEXUSOPS_AI_MODE="live"
+$env:NEXUSOPS_DEMO_MODE="false"
+python scripts\live_fpt_smoke_test.py
+```
 
-## Dữ liệu bất biến
+Agent Layer cho hai workflow `CORPORATE_OVERDRAFT` và `WORKING_CAPITAL`.
 
-`final_rag_data_normalized_v1.json` là input read-only. Code trong package chỉ đọc file này; index/runtime artifacts phải ghi vào `runtime/`.
+## Trách nhiệm
 
-## Cấu trúc
+- Agent là nguồn chuẩn cho product contract, document matrix, routing, metrics, RAG, Mandatory Critic và Citation Validator.
+- Backend là lớp persistence/API/audit trên PostgreSQL.
+- Frontend chỉ thu thập input và hiển thị readiness output; không tự quyết workflow hay policy.
+- Kết quả chỉ là readiness cho Human-in-the-loop, không phải phê duyệt, từ chối, hạn mức hay lãi suất.
+
+## Corporate Overdraft
+
+Thấu chi doanh nghiệp là hạn mức quay vòng trên tài khoản thanh toán (`REVOLVING_LIMIT`), không phải khoản vay giải ngân một lần. Agent kiểm tra lịch sử tài khoản, doanh số ghi Có 12 tháng, dòng tiền bình quân tháng, độ ổn định, tỷ lệ hạn mức đề nghị/dòng tiền, hành vi cleanup, CIC/KYC/AML và đối chiếu tài chính-thuế.
+
+Danh mục chuẩn:
+
+```text
+BUSINESS_REGISTRATION
+BANK_STATEMENTS_12M
+FINANCIAL_STATEMENTS_2Y
+TAX_RETURNS_2Y
+CIC_REPORT
+OVERDRAFT_REQUEST
+```
+
+## Working Capital
+
+Yêu cầu mục đích vay, tỷ lệ tài sản bảo đảm, báo cáo tài chính 2 năm, khai thuế 2 năm, CIC và kế hoạch vốn lưu động.
+
+## Dữ liệu và cấu trúc
+
+`final_rag_data_normalized_v1.json` là input read-only. Runtime index/trace/evaluation ghi vào `runtime/`. Các ngưỡng trong `configs/products/*.json` là `SYNTHETIC_DEMO_POLICY`, không phải chính sách chính thức.
 
 ```text
 agent/
-├── final_rag_data_normalized_v1.json   # immutable input
-├── configs/                            # model, routing, workflow definitions
-├── prompts/                            # versioned prompts; không yêu cầu chain-of-thought
+├── configs/                 # product, routing, workflow, model registry
 ├── src/nexusops_agent/
-│   ├── agents/                         # planner/specialists/mandatory critic
-│   ├── contracts/                      # typed I/O artifacts và workflow state
-│   ├── nodes/                          # deterministic và LLM node adapters
-│   ├── orchestration/                  # engine registry, router, workflow compiler
-│   ├── rag/                            # loader, namespace router, retriever, validator
-│   ├── tools/                          # allowlisted banking tool adapters
-│   └── observability/                  # node run events/traces
-├── scripts/                            # validation và smoke test
-├── tests/                              # unit tests
-└── runtime/                            # generated indexes/traces; không commit payload
+│   ├── agents/              # planner, specialists, mandatory critic
+│   ├── contracts/           # typed CaseContext, artifacts, workflow state
+│   ├── nodes/               # deterministic and RAG-backed nodes
+│   ├── orchestration/       # router, workflow and bounded rework
+│   ├── rag/                 # loader, retriever, citation validator
+│   └── tools/               # allowlisted banking adapters
+├── scripts/
+├── tests/
+└── runtime/
 ```
 
-## Chạy kiểm tra
+## Kiểm tra
 
 ```powershell
-cd E:\Downloads\Ddc\agent
-python scripts\validate_rag_data.py
-python scripts\smoke_test.py
-python -m unittest discover -s tests -v
+cd D:\D\abc
+.\backend\.venv313\Scripts\python.exe -m unittest discover -s agent/tests -v
 ```
 
-## Kết nối với Backend
-
-Backend chỉ gọi Agent Layer qua một service adapter, truyền `CaseContext` và nhận `WorkflowState`/`AgentArtifact`. Browser không gọi trực tiếp model, vector store hoặc tool.
-
-```text
-React → FastAPI Backend → AgentService → Router/Workflow
-                                      → Specialist/Deterministic Nodes
-                                      → RAG/Tools
-                                      → Mandatory Critic
-                                      → Citation Validator
-                                      → Readiness Artifact
-```
+FPT AI Factory dùng OpenAI-compatible base URL. Chỉ đặt `FPT_AI_API_KEY` trong `.env` cục bộ; deterministic workflow không cần key.
