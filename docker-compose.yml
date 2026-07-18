@@ -1,0 +1,89 @@
+name: nexusops
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nexusops}
+      POSTGRES_USER: ${POSTGRES_USER:-nexusops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexusops_dev_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-nexusops} -d ${POSTGRES_DB:-nexusops}
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: nexusops-backend:3.1
+    init: true
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ./agent/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-nexusops}:${POSTGRES_PASSWORD:-nexusops_dev_password}@postgres:5432/${POSTGRES_DB:-nexusops}
+      NEXUSOPS_AGENT_ROOT: /workspace/agent
+      NEXUSOPS_RAG_DATA_PATH: /workspace/agent/final_rag_data_normalized_v1.json
+      NEXUSOPS_CONFIG_DIR: /workspace/agent/configs
+      NEXUSOPS_RUNTIME_DIR: /workspace/agent/runtime
+      NEXUSOPS_AI_MODE: ${NEXUSOPS_AI_MODE:-live}
+      NEXUSOPS_DEMO_MODE: ${NEXUSOPS_DEMO_MODE:-false}
+      NEXUSOPS_ALLOW_REVIEW_REQUIRED: "false"
+      NEXUSOPS_ENABLE_MOCK_APIS: ${NEXUSOPS_ENABLE_MOCK_APIS:-false}
+      FPT_AI_TIMEOUT_SECONDS: ${FPT_AI_TIMEOUT_SECONDS:-20}
+      FPT_AI_MAX_RETRIES: ${FPT_AI_MAX_RETRIES:-0}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
+      FRONTEND_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173
+    ports:
+      - "8000:8000"
+    volumes:
+      - agent-runtime:/workspace/agent/runtime
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json, urllib.request; data=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)); assert data['data']['status']=='ok'"
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: ""
+    image: nexusops-frontend:3.1
+    init: true
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+        restart: true
+    ports:
+      - "3000:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+
+volumes:
+  postgres-data:
+  agent-runtime:

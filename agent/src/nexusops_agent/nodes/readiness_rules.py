@@ -19,6 +19,24 @@ def financial_metrics(case: CaseContext) -> dict[str, float]:
         metrics["debt_to_assets"] = case.total_debt / case.total_assets
     if case.operating_cash_flow is not None and case.annual_debt_service:
         metrics["dscr_proxy"] = case.operating_cash_flow / case.annual_debt_service
+    turnover = case.twelve_month_credit_turnover or case.twelve_month_account_turnover
+    average_inflow = case.average_monthly_credit_inflow
+    if average_inflow is None and turnover is not None:
+        average_inflow = turnover / 12
+    if turnover is not None:
+        metrics["twelve_month_credit_turnover"] = turnover
+    if average_inflow is not None:
+        metrics["average_monthly_credit_inflow"] = average_inflow
+        if average_inflow > 0:
+            metrics["requested_limit_to_monthly_inflow"] = case.requested_amount / average_inflow
+    if case.turnover_stability_ratio is not None:
+        metrics["turnover_stability_ratio"] = case.turnover_stability_ratio
+    if case.expected_utilization_ratio is not None:
+        metrics["expected_utilization_ratio"] = case.expected_utilization_ratio
+    if case.negative_balance_days is not None:
+        metrics["negative_balance_days"] = float(case.negative_balance_days)
+    if case.cleanup_days is not None:
+        metrics["cleanup_days"] = float(case.cleanup_days)
     gap = financial_tax_gap(case)
     if gap is not None:
         metrics["tax_revenue_gap"] = gap
@@ -40,10 +58,16 @@ def _evaluate(actual: Any, operator: str, expected: Any) -> bool | None:
         if not isinstance(actual, list) or len(actual) < 2:
             return None
         return all(value > expected for value in actual[-2:])
+    if operator == "empty":
+        if actual is None:
+            return None
+        return not bool(actual)
     if actual is None:
         return None
     if operator == ">=":
         return actual >= expected
+    if operator == ">":
+        return actual > expected
     if operator == "<=":
         return actual <= expected
     if operator == "==":
@@ -59,6 +83,14 @@ class ReadinessRuleEngine:
         filename = "corporate_overdraft.json" if case.product == "CORPORATE_OVERDRAFT" else "working_capital.json"
         return json.loads((self.config_dir / filename).read_text(encoding="utf-8"))
 
+    def product_definition(self, product: str) -> dict[str, Any]:
+        filename = "corporate_overdraft.json" if product == "CORPORATE_OVERDRAFT" else "working_capital.json"
+        return json.loads((self.config_dir / filename).read_text(encoding="utf-8"))
+
+    def canonical_case(self, case: CaseContext) -> CaseContext:
+        pack = self._load_pack(case)
+        return case.model_copy(update={"required_documents": list(pack["required_documents"])})
+
     def assess(self, case: CaseContext) -> ReadinessAssessment:
         if not case.existing_customer:
             return ReadinessAssessment(
@@ -67,13 +99,12 @@ class ReadinessRuleEngine:
                 warnings=["NEW_TO_BANK_OUT_OF_MVP_SCOPE"],
             )
         pack = self._load_pack(case)
-        metrics = financial_metrics(case)
-        required_documents = case.required_documents or list(pack["required_documents"])
-        case_for_docs = case.model_copy(update={"required_documents": required_documents})
+        case_for_docs = self.canonical_case(case)
+        metrics = financial_metrics(case_for_docs)
         completeness = document_completeness(case_for_docs)
         results: list[RuleResult] = []
         for rule in pack["rules"]:
-            actual = _field_value(case, rule["field"], metrics)
+            actual = _field_value(case_for_docs, rule["field"], metrics)
             outcome = _evaluate(actual, rule["operator"], rule["value"])
             status = "UNKNOWN" if outcome is None else "PASS" if outcome else "FAIL"
             results.append(

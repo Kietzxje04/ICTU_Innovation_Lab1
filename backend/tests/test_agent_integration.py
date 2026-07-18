@@ -1,4 +1,7 @@
 import unittest
+import os
+
+os.environ.setdefault("NEXUSOPS_ENV", "test")
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -47,7 +50,7 @@ class AgentIntegrationTest(unittest.TestCase):
         second = self.assessments.run("toan-cau", "assessment-idempotency-test")
         self.assertEqual(first.run_id, second.run_id)
         self.assertEqual("COMPLETED", first.status)
-        self.assertEqual(["MANDATORY_CRITIC", "CITATION_VALIDATOR", "POLICY_GATE"], first.route[-3:])
+        self.assertEqual(["MANDATORY_CRITIC", "CITATION_VALIDATOR", "READINESS_RULE_ENGINE", "POLICY_GATE"], first.route[-4:])
         self.assertGreaterEqual(len(first.artifacts), 10)
         self.assertEqual(len(first.artifacts), len(first.events))
 

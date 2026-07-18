@@ -33,15 +33,18 @@ class WorkflowRunnerTest(unittest.TestCase):
             product=ProductType.CORPORATE_OVERDRAFT,
             requested_amount=500_000_000,
             relationship_months=18,
-            submitted_documents=["BCTC", "TAX_DECLARATION", "CIC_CONSENT", "OVERDRAFT_REQUEST"],
+            submitted_documents=["BUSINESS_REGISTRATION", "BANK_STATEMENTS_12M", "FINANCIAL_STATEMENTS_2Y", "TAX_RETURNS_2Y", "CIC_REPORT", "OVERDRAFT_REQUEST"],
             annual_revenue=15_000_000_000,
+            tax_declared_revenue=14_800_000_000,
             pretax_profit_last_2_years=[500_000_000, 650_000_000],
             twelve_month_account_turnover=20_000_000_000,
+            turnover_stability_ratio=0.8,
+            overdraft_purpose="Bổ sung vốn lưu động qua tài khoản thanh toán",
             cic_bad_debt=False,
         )
         state = self.runner.run(case)
         self.assertNotIn("COMPLIANCE_AGENT", state.route)
-        self.assertEqual(["MANDATORY_CRITIC", "CITATION_VALIDATOR", "POLICY_GATE"], state.route[-3:])
+        self.assertEqual(["MANDATORY_CRITIC", "CITATION_VALIDATOR", "READINESS_RULE_ENGINE", "POLICY_GATE"], state.route[-4:])
         self.assertEqual("READY_FOR_HUMAN_REVIEW", state.final_status)
         self.assertEqual("PASS", state.critic_verdict)
         self.assertTrue(state.trace)

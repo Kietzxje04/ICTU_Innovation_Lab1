@@ -15,6 +15,7 @@ class Reranker(Protocol):
 class RetrievalPipeline:
     lexical: HybridLiteRetriever
     reranker: Reranker | None = None
+    reranker_fail_open: bool = True
 
     def retrieve(self, *, agent_id: str, query: str, demo_mode: bool = True, top_k: int = 6) -> list[RetrievalHit]:
         policy = policy_for(agent_id, demo_mode=demo_mode)
@@ -25,5 +26,9 @@ class RetrievalPipeline:
             allow_review_required=policy.allow_review_required,
         )
         if self.reranker is not None:
-            return self.reranker.rerank(query, candidates, top_n=top_k)
+            try:
+                return self.reranker.rerank(query, candidates, top_n=top_k)
+            except Exception:
+                if not self.reranker_fail_open:
+                    raise
         return candidates[:top_k]

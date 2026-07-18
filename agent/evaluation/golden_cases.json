@@ -8,16 +8,19 @@
       "product": "CORPORATE_OVERDRAFT",
       "requested_amount": 500000000,
       "relationship_months": 18,
-      "submitted_documents": ["BCTC", "TAX_DECLARATION", "CIC_CONSENT", "OVERDRAFT_REQUEST"],
+      "submitted_documents": ["BUSINESS_REGISTRATION", "BANK_STATEMENTS_12M", "FINANCIAL_STATEMENTS_2Y", "TAX_RETURNS_2Y", "CIC_REPORT", "OVERDRAFT_REQUEST"],
       "annual_revenue": 15000000000,
+      "tax_declared_revenue": 14800000000,
       "pretax_profit_last_2_years": [500000000, 650000000],
       "twelve_month_account_turnover": 20000000000,
+      "turnover_stability_ratio": 0.8,
+      "overdraft_purpose": "Bổ sung vốn lưu động qua tài khoản thanh toán",
       "cic_bad_debt": false
     },
     "expected": {
       "final_status": "READY_FOR_HUMAN_REVIEW",
       "critic_verdict": "PASS",
-      "route_contains": ["MANDATORY_CRITIC", "CITATION_VALIDATOR", "POLICY_GATE"],
+      "route_contains": ["MANDATORY_CRITIC", "CITATION_VALIDATOR", "READINESS_RULE_ENGINE", "POLICY_GATE"],
       "route_excludes": ["COMPLIANCE_AGENT"]
     }
   },
@@ -39,7 +42,7 @@
     "expected": {
       "final_status": "NEEDS_MORE_EVIDENCE",
       "critic_verdict": "ESCALATE",
-      "route_contains": ["COMPLIANCE_AGENT", "MANDATORY_CRITIC", "CITATION_VALIDATOR", "POLICY_GATE"],
+      "route_contains": ["COMPLIANCE_AGENT", "MANDATORY_CRITIC", "CITATION_VALIDATOR", "READINESS_RULE_ENGINE", "POLICY_GATE"],
       "route_excludes": []
     }
   },
@@ -55,7 +58,7 @@
     "expected": {
       "final_status": "BLOCKED",
       "critic_verdict": "ESCALATE",
-      "route_contains": ["EXISTING_CUSTOMER_GATE", "MANDATORY_CRITIC", "CITATION_VALIDATOR", "POLICY_GATE"],
+      "route_contains": ["EXISTING_CUSTOMER_GATE", "MANDATORY_CRITIC", "CITATION_VALIDATOR", "READINESS_RULE_ENGINE", "POLICY_GATE"],
       "route_excludes": ["COMPLIANCE_AGENT"]
     }
   }

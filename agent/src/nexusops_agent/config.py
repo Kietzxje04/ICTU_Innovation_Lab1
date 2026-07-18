@@ -29,6 +29,11 @@ def _as_bool(value: str | None, default: bool) -> bool:
     return value.strip().casefold() in {"1", "true", "yes", "on"}
 
 
+def _path_from_env(name: str, default: Path) -> Path:
+    value = Path(os.getenv(name, str(default)))
+    return value if value.is_absolute() else (PACKAGE_ROOT / value).resolve()
+
+
 @dataclass(frozen=True)
 class Settings:
     rag_data_path: Path
@@ -36,6 +41,7 @@ class Settings:
     runtime_dir: Path
     demo_mode: bool = True
     allow_review_required: bool = False
+    ai_mode: str = "deterministic"
     fpt_ai_base_url: str = "https://mkp-api.fptcloud.com/v1"
     fpt_ai_api_key: str | None = field(default=None, repr=False)
     fpt_ai_timeout_seconds: float = 60.0
@@ -44,11 +50,12 @@ class Settings:
     @classmethod
     def from_env(cls) -> "Settings":
         return cls(
-            rag_data_path=Path(os.getenv("NEXUSOPS_RAG_DATA_PATH", PACKAGE_ROOT / "final_rag_data_normalized_v1.json")),
-            config_dir=Path(os.getenv("NEXUSOPS_CONFIG_DIR", PACKAGE_ROOT / "configs")),
-            runtime_dir=Path(os.getenv("NEXUSOPS_RUNTIME_DIR", PACKAGE_ROOT / "runtime")),
+            rag_data_path=_path_from_env("NEXUSOPS_RAG_DATA_PATH", PACKAGE_ROOT / "final_rag_data_normalized_v1.json"),
+            config_dir=_path_from_env("NEXUSOPS_CONFIG_DIR", PACKAGE_ROOT / "configs"),
+            runtime_dir=_path_from_env("NEXUSOPS_RUNTIME_DIR", PACKAGE_ROOT / "runtime"),
             demo_mode=_as_bool(os.getenv("NEXUSOPS_DEMO_MODE"), True),
             allow_review_required=_as_bool(os.getenv("NEXUSOPS_ALLOW_REVIEW_REQUIRED"), False),
+            ai_mode=os.getenv("NEXUSOPS_AI_MODE", "deterministic").strip().casefold(),
             fpt_ai_base_url=os.getenv("FPT_AI_BASE_URL", "https://mkp-api.fptcloud.com/v1").rstrip("/"),
             fpt_ai_api_key=os.getenv("FPT_AI_API_KEY") or None,
             fpt_ai_timeout_seconds=float(os.getenv("FPT_AI_TIMEOUT_SECONDS", "60")),
@@ -59,3 +66,7 @@ class Settings:
         if not self.fpt_ai_api_key:
             raise RuntimeError("FPT_AI_API_KEY is not configured; set it in a local .env or process environment")
         return self.fpt_ai_api_key
+
+    @property
+    def live_ai_enabled(self) -> bool:
+        return self.ai_mode == "live"

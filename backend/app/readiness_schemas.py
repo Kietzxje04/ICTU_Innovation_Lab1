@@ -57,6 +57,7 @@ class ReadinessCase(BaseModel):
     owner: str
     submitted_at: str
     sla_due: str
+    execution_duration_ms: float | None = None
     context: CaseContext
     workflow: ReadinessWorkflow
     evidence: list[EvidenceItem]

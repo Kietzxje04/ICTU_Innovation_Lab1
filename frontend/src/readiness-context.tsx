@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import type { CaseContext, ReadinessCase } from './domain'
+import type { CaseContext, ReadinessCase, WorkflowState } from './domain'
 import { apiReadinessAdapter } from './readiness-adapter'
 
 interface CreateCasePayload {
@@ -15,6 +15,7 @@ interface ReadinessContextValue {
   error: string | null
   refresh: () => void
   createCase: (payload: CreateCasePayload) => Promise<ReadinessCase>
+  rerunCase: (caseId: string, onNodeResult?: (state: WorkflowState, node: string, index: number) => void | Promise<void>) => Promise<ReadinessCase>
 }
 
 const ReadinessContext = createContext<ReadinessContextValue | null>(null)
@@ -57,6 +58,12 @@ export function ReadinessProvider({ children }: { children: React.ReactNode }) {
     createCase: async ({ context, company_name, owner }) => {
       const nextCase = await apiReadinessAdapter.createCase({ context, company_name, owner })
       setCases((current) => [nextCase, ...current])
+      setDataMode('api')
+      return nextCase
+    },
+    rerunCase: async (caseId, onNodeResult) => {
+      const nextCase = await apiReadinessAdapter.rerunCase(caseId, onNodeResult)
+      setCases((current) => current.map((item) => item.id === caseId ? nextCase : item))
       setDataMode('api')
       return nextCase
     },

@@ -52,6 +52,8 @@ def _run(name: str, model: str, call: Callable[[], dict[str, Any]]) -> dict[str,
 
 
 def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     settings = Settings.from_env()
     client = build_provider_from_settings(settings)
     json_format = {"type": "json_object"}

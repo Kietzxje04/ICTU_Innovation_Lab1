@@ -2,11 +2,22 @@
   "product": "CORPORATE_OVERDRAFT",
   "policy_source": "SHB_SME_POLICY_2026_DEMO",
   "synthetic": true,
-  "required_documents": ["BCTC", "TAX_DECLARATION", "CIC_CONSENT", "OVERDRAFT_REQUEST"],
+  "facility_type": "REVOLVING_LIMIT",
+  "purpose": "WORKING_CAPITAL_OVERDRAFT",
+  "customer_relationship": "EXISTING",
+  "currency": "VND",
+  "required_documents": ["BUSINESS_REGISTRATION", "BANK_STATEMENTS_12M", "FINANCIAL_STATEMENTS_2Y", "TAX_RETURNS_2Y", "CIC_REPORT", "OVERDRAFT_REQUEST"],
   "rules": [
-    {"rule_id": "OD_RELATIONSHIP_12M", "field": "relationship_months", "operator": ">=", "value": 12, "reason_code": "RELATIONSHIP_TOO_SHORT"},
+    {"rule_id": "OD_RELATIONSHIP_12M", "field": "account_history_months", "operator": ">=", "value": 12, "reason_code": "RELATIONSHIP_TOO_SHORT"},
     {"rule_id": "OD_PROFIT_POSITIVE_2Y", "field": "pretax_profit_last_2_years", "operator": "all_gt", "value": 0, "reason_code": "PROFIT_NOT_POSITIVE"},
     {"rule_id": "OD_CIC_CLEAR", "field": "cic_bad_debt", "operator": "==", "value": false, "reason_code": "CIC_BAD_DEBT"},
+    {"rule_id": "OD_TURNOVER_PRESENT", "field": "twelve_month_credit_turnover", "operator": ">", "value": 0, "reason_code": "ACCOUNT_TURNOVER_MISSING"},
+    {"rule_id": "OD_AVG_INFLOW_PRESENT", "field": "average_monthly_credit_inflow", "operator": ">", "value": 0, "reason_code": "AVERAGE_INFLOW_MISSING"},
+    {"rule_id": "OD_LIMIT_TO_INFLOW_MAX", "field": "requested_limit_to_monthly_inflow", "operator": "<=", "value": 1.5, "reason_code": "REQUESTED_LIMIT_EXCESSIVE"},
+    {"rule_id": "OD_TURNOVER_STABILITY_MIN", "field": "turnover_stability_ratio", "operator": ">=", "value": 0.6, "reason_code": "TURNOVER_UNSTABLE"},
+    {"rule_id": "OD_TAX_GAP_MAX", "field": "tax_revenue_gap", "operator": "<=", "value": 0.1, "reason_code": "FINANCIAL_TAX_MISMATCH"},
+    {"rule_id": "OD_ACCOUNT_CONDUCT", "field": "account_conduct_flags", "operator": "empty", "value": true, "reason_code": "ACCOUNT_CONDUCT_EXCEPTION"},
+    {"rule_id": "OD_PURPOSE_DECLARED", "field": "overdraft_purpose", "operator": "non_empty", "value": true, "reason_code": "OVERDRAFT_PURPOSE_MISSING"},
     {"rule_id": "OD_REVENUE_MIN", "field": "annual_revenue", "operator": ">=", "value": 10000000000, "reason_code": "REVENUE_BELOW_DEMO_THRESHOLD"}
   ]
 }

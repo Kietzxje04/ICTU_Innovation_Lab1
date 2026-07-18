@@ -42,7 +42,7 @@
     },
     "credit_agent": {
       "primary_model": "Qwen3.6-27B",
-      "fallback_model": "GLM-5.1",
+      "fallback_model": "SaoLa3.1-medium",
       "temperature": 0.1,
       "max_tokens": 2800
     },

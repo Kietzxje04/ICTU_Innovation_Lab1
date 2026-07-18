@@ -8,18 +8,49 @@ const SOURCE_LABELS: Record<EvidenceItem['source_type'], string> = {
 }
 
 const FIELD_LABELS: Record<string, string> = {
+  case_id: 'Mã hồ sơ', relationship_months: 'Thời gian quan hệ', current_assets: 'Tài sản ngắn hạn', current_liabilities: 'Nợ ngắn hạn', total_debt: 'Tổng dư nợ', total_assets: 'Tổng tài sản',
+  operating_cash_flow: 'Dòng tiền từ hoạt động kinh doanh', annual_debt_service: 'Nghĩa vụ trả nợ năm', collateral_ratio: 'Tỷ lệ tài sản bảo đảm', twelve_month_account_turnover: 'Vòng quay tài khoản 12 tháng',
+  account_history_months: 'Lịch sử tài khoản', twelve_month_credit_turnover: 'Doanh số ghi Có 12 tháng', average_monthly_credit_inflow: 'Dòng tiền ghi Có bình quân tháng', turnover_stability_ratio: 'Độ ổn định dòng tiền',
+  expected_utilization_ratio: 'Tỷ lệ sử dụng dự kiến', negative_balance_days: 'Số ngày sử dụng thấu chi', cleanup_days: 'Số ngày hoàn trả', overdraft_purpose: 'Mục đích thấu chi', loan_purpose: 'Mục đích vay', account_conduct_flags: 'Cảnh báo hành vi tài khoản',
   existing_customer: 'Khách hàng hiện hữu', product: 'Sản phẩm', requested_amount: 'Số tiền đề nghị', submitted_documents: 'Tài liệu đã nộp', required_documents: 'Tài liệu bắt buộc',
   annual_revenue: 'Doanh thu năm', tax_declared_revenue: 'Doanh thu khai thuế', pretax_profit_last_2_years: 'Lợi nhuận trước thuế 2 năm', cic_bad_debt: 'Cờ nợ xấu CIC',
   kyc_aml_flags: 'Cảnh báo KYC/AML', customer_id: 'Mã khách hàng', metadata: 'Thông tin bổ sung',
 }
 
-function formatCaseValue(field: string, value: unknown) {
+const VALUE_LABELS: Record<string, string> = {
+  WORKING_CAPITAL: 'Vốn lưu động', CORPORATE_OVERDRAFT: 'Thấu chi doanh nghiệp',
+  BUSINESS_REGISTRATION: 'Đăng ký kinh doanh', FINANCIAL_STATEMENTS_2Y: 'Báo cáo tài chính 2 năm', TAX_RETURNS_2Y: 'Tờ khai thuế 2 năm', CIC_REPORT: 'Báo cáo CIC',
+  WORKING_CAPITAL_PLAN: 'Phương án vốn lưu động', BANK_STATEMENTS_12M: 'Sao kê tài khoản 12 tháng', OVERDRAFT_REQUEST: 'Đề nghị cấp hạn mức thấu chi', KYC: 'Hồ sơ định danh khách hàng',
+  BENEFICIAL_OWNER_REVIEW: 'Cần xác minh chủ sở hữu hưởng lợi', NEW_CUSTOMER_KYC_PENDING: 'Khách hàng mới đang chờ hoàn tất KYC', IRREGULAR_CLEANUP: 'Chu kỳ hoàn trả không ổn định',
+}
+
+const MONEY_FIELDS = new Set(['requested_amount', 'annual_revenue', 'tax_declared_revenue', 'current_assets', 'current_liabilities', 'total_debt', 'total_assets', 'operating_cash_flow', 'annual_debt_service', 'twelve_month_account_turnover', 'twelve_month_credit_turnover', 'average_monthly_credit_inflow'])
+const RATIO_FIELDS = new Set(['collateral_ratio', 'turnover_stability_ratio', 'expected_utilization_ratio'])
+
+function formatCaseValue(field: string, value: unknown): string {
   if (value === null || value === undefined) return 'Chưa có dữ liệu'
   if (typeof value === 'boolean') return value ? 'Có' : 'Không'
-  if (typeof value === 'number') return field.includes('revenue') || field.includes('amount') || field.includes('profit') ? `${new Intl.NumberFormat('vi-VN').format(value)} ₫` : new Intl.NumberFormat('vi-VN').format(value)
-  if (Array.isArray(value)) return value.length ? value.map((item) => typeof item === 'number' ? new Intl.NumberFormat('vi-VN').format(item) : String(item).replaceAll('_', ' ')).join(' · ') : 'Không có'
-  if (typeof value === 'object') return Object.entries(value as Record<string, unknown>).map(([key, item]) => `${key}: ${String(item)}`).join(' · ')
-  return String(value).replaceAll('_', ' ')
+  if (typeof value === 'number') {
+    if (MONEY_FIELDS.has(field) || field.includes('profit')) return `${new Intl.NumberFormat('vi-VN').format(value)} ₫`
+    if (RATIO_FIELDS.has(field)) return `${(value * 100).toFixed(1)}%`
+    if (field.includes('months')) return `${new Intl.NumberFormat('vi-VN').format(value)} tháng`
+    return new Intl.NumberFormat('vi-VN').format(value)
+  }
+  if (Array.isArray(value)) return value.length ? value.map((item) => typeof item === 'number' ? `${new Intl.NumberFormat('vi-VN').format(item)} ₫` : VALUE_LABELS[String(item)] ?? String(item).replaceAll('_', ' ')).join(' · ') : 'Không có cảnh báo'
+  if (typeof value === 'object') return Object.entries(value as Record<string, unknown>).map(([key, item]) => `${FIELD_LABELS[key] ?? key.replaceAll('_', ' ')}: ${formatCaseValue(key, item)}`).join(' · ')
+  return VALUE_LABELS[String(value)] ?? String(value).replaceAll('_', ' ')
+}
+
+function CaseContextContent({ context }: { context: CaseContext }) {
+  const groups = [
+    { title: 'Thông tin hồ sơ', fields: ['case_id', 'customer_id', 'product', 'existing_customer', 'relationship_months', 'requested_amount', 'loan_purpose', 'overdraft_purpose'] },
+    { title: 'Hồ sơ và chứng từ', fields: ['submitted_documents', 'required_documents'] },
+    { title: 'Tình hình tài chính', fields: ['annual_revenue', 'tax_declared_revenue', 'pretax_profit_last_2_years', 'current_assets', 'current_liabilities', 'total_debt', 'total_assets', 'operating_cash_flow', 'annual_debt_service', 'collateral_ratio'] },
+    { title: 'Dòng tiền và tài khoản', fields: ['account_history_months', 'twelve_month_account_turnover', 'twelve_month_credit_turnover', 'average_monthly_credit_inflow', 'turnover_stability_ratio', 'expected_utilization_ratio', 'negative_balance_days', 'cleanup_days', 'account_conduct_flags'] },
+    { title: 'Rủi ro và tuân thủ', fields: ['cic_bad_debt', 'kyc_aml_flags'] },
+    { title: 'Thông tin bổ sung', fields: ['metadata'] },
+  ]
+  return <div className="case-context-readable">{groups.map((group) => <section key={group.title}><h3>{group.title}</h3><div className="citation-case-fields">{group.fields.map((field) => <div key={field}><span>{FIELD_LABELS[field] ?? field.replaceAll('_', ' ')}</span><strong>{formatCaseValue(field, getCaseField(context, field))}</strong></div>)}</div></section>)}</div>
 }
 
 function getCaseField(context: CaseContext, field: string) {
@@ -63,7 +94,7 @@ export function CitationDetailPage() {
     <header className="citation-detail-hero"><div><div className="citation-title-meta"><span className={`citation-domain ${evidence.domain.toLowerCase()}`}>{evidence.domain.replaceAll('_', ' ')}</span><span className={`citation-validity ${evidence.validation.toLowerCase()}`}><ShieldCheck size={12} />{evidence.validation}</span></div><h1>{evidence.document_title}</h1><p>{evidence.document_number} · {SOURCE_LABELS[evidence.source_type]}</p></div><Link className="outline-button" to={`/cases/${readinessCase.id}#${returnTarget}`}><ExternalLink size={14} /> Xem dữ liệu được đánh giá</Link></header>
     <div className="citation-detail-grid"><article className="citation-document">
       <section className="exact-quote"><div><Quote size={18} /><span>Đoạn được hệ thống trích dẫn nguyên văn</span></div><blockquote>“{evidence.citation_text}”</blockquote><small>Chunk ID: {evidence.chunk_id}</small></section>
-      <section className="citation-section"><div className="citation-section-title"><BookOpen size={17} /><div><h2>Nội dung đầy đủ của căn cứ</h2><p>Phần nội dung bao quanh trích dẫn để nhân viên hiểu đúng ngữ cảnh.</p></div></div><p className="full-policy-content">{evidence.full_content}</p></section>
+      <section className="citation-section"><div className="citation-section-title"><BookOpen size={17} /><div><h2>Nội dung đầy đủ của căn cứ</h2><p>Phần nội dung bao quanh trích dẫn để nhân viên hiểu đúng ngữ cảnh.</p></div></div>{evidence.domain === 'CASE_DATA' ? <CaseContextContent context={readinessCase.context} /> : <p className="full-policy-content">{evidence.full_content}</p>}</section>
       <section className="citation-section evaluation-basis"><div className="citation-section-title"><Scale size={17} /><div><h2>Cơ sở dùng để đánh giá</h2><p>Giải thích vì sao nguồn này được áp dụng cho hồ sơ.</p></div></div><p>{evidence.evaluation_basis}</p></section>
       <section className="citation-section"><div className="citation-section-title"><Link2 size={17} /><div><h2>Các khâu workflow sử dụng nguồn này</h2><p>Nguồn không được dùng ngoài các khâu được liệt kê.</p></div></div><div className="related-node-list">{evidence.related_nodes.map((node, nodeIndex) => <div key={node}><span>{nodeIndex + 1}</span><div><strong>{NODE_LABELS[node] ?? node}</strong><small>{node}</small></div><CheckCircle2 size={15} /></div>)}</div></section>
       <section className="citation-section"><div className="citation-section-title"><FileCheck2 size={17} /><div><h2>Dữ liệu hồ sơ được đối chiếu</h2><p>Giá trị thực tế mà agent so sánh với căn cứ trên.</p></div></div>{evidence.case_field_refs.length ? <div className="citation-case-fields">{evidence.case_field_refs.map((field) => <div key={field}><span>{FIELD_LABELS[field] ?? field}</span><strong>{formatCaseValue(field, getCaseField(readinessCase.context, field))}</strong></div>)}</div> : <div className="no-case-fields">Nguồn này chỉ mô tả ranh giới hệ thống, không trực tiếp đánh giá trường dữ liệu nào.</div>}</section>

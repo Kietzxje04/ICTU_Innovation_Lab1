@@ -1,67 +1,92 @@
 # NexusOps Backend
 
-FastAPI backend kết nối trực tiếp với package `nexusops-agent`. Agent contracts là nguồn dữ liệu chuẩn; các schema `Company` chỉ là projection tương thích frontend hiện tại.
+## Live AI runtime
 
-## Cài đặt
+Docker Compose đọc secret từ `agent/.env` tại runtime. Compose mặc định dùng `NEXUSOPS_AI_MODE=live`, `NEXUSOPS_DEMO_MODE=false` và `NEXUSOPS_ENABLE_MOCK_APIS=false`.
+
+Product Agent, Credit Agent, Compliance Agent và Mandatory Critic gọi FPT AI Factory với structured JSON output. Hard rules, công thức tài chính, document matrix và status readiness vẫn deterministic và có quyền ưu tiên cao hơn output AI.
+
+Danh sách case không tự chạy AI cho hồ sơ chưa có assessment. Agent chỉ chạy khi tạo case hoặc mở chi tiết, tránh gọi model hàng loạt cho dữ liệu seed.
+
+FastAPI backend kết nối với package `nexusops-agent`, lưu case/run/artifact/citation/action trong PostgreSQL và cung cấp dữ liệu cho React frontend.
+
+## Chạy bằng Docker Compose
+
+Từ thư mục gốc:
+
+```powershell
+cd D:\D\abc
+Copy-Item .env.example .env
+docker compose up --build -d
+```
+
+Backend image cài package `agent` từ cùng build context. PostgreSQL được lưu trong volume `nexusops_postgres-data`; runtime index/trace/evaluation của agent được lưu trong `nexusops_agent-runtime`. Frontend Docker mở tại http://localhost:3000. Docker mặc định không seed case mẫu; đặt `SEED_DEMO_DATA=true` trong `.env` hoặc chạy `docker compose exec backend python -m app.seed` nếu cần dữ liệu demo.
+
+## Chạy local
 
 ```powershell
 cd D:\D\abc\backend
 py -3.13 -m venv .venv313
 .\.venv313\Scripts\python.exe -m pip install -r requirements.txt
-```
-
-## Chạy
-
-```powershell
+$env:DATABASE_URL="postgresql+psycopg://nexusops:nexusops_dev_password@localhost:5432/nexusops"
 .\.venv313\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
 ```
 
-- Swagger: http://localhost:8000/docs
-- Health: http://localhost:8000/health
-- Agent health: http://localhost:8000/api/agent/health
-- RAG inventory: http://localhost:8000/api/agent/rag/inventory
+Trong Docker, `DATABASE_URL` trỏ tới service PostgreSQL `postgres`. Khi chạy backend trực tiếp trên máy, dùng `postgresql+psycopg://nexusops:nexusops_dev_password@localhost:5432/nexusops`. Backend không hỗ trợ SQLite runtime.
 
-## Frontend readiness contract
-
-Frontend mới dùng các field `CaseContext`, `WorkflowState`, `EvidenceItem` và `ReadinessCase`. Backend cung cấp:
+## API chính
 
 ```text
+GET  /health
+GET  /api/agent/health
+GET  /api/agent/rag/inventory
+
 GET  /api/readiness/cases
-GET  /api/readiness/cases/{case_id}
 POST /api/readiness/cases
+GET  /api/readiness/cases/{case_id}
+
+GET  /api/v3/products
+GET  /api/v3/products/{product}/intake-schema
+POST /api/v3/cases/preview-route
+
+POST /api/v1/agent/runs
+GET  /api/v1/agent/runs/{case_id}
+GET  /api/v1/agent/runs/{case_id}/events
 ```
 
-`POST /api/readiness/cases` nhận JSON dạng:
+Swagger: http://localhost:8000/docs
 
-```json
-{
-  "company_name": "Example Company",
-  "owner": "Relationship Manager",
-  "context": {
-    "case_id": "CASE-001",
-    "customer_id": "CUS-001",
-    "existing_customer": true,
-    "product": "WORKING_CAPITAL",
-    "requested_amount": 5000000000,
-    "relationship_months": 24,
-    "submitted_documents": [],
-    "required_documents": [],
-    "annual_revenue": null,
-    "pretax_profit_last_2_years": [],
-    "tax_declared_revenue": null,
-    "cic_bad_debt": false,
-    "kyc_aml_flags": [],
-    "metadata": {}
-  }
-}
-```
+Các API product/schema/preview đọc trực tiếp cấu hình và router của package Agent. Khi tạo case, backend thay `required_documents` do client gửi bằng ma trận chuẩn của Agent trước khi ghi PostgreSQL. Các cột thấu chi mới được thêm bằng migration cộng dồn, không xóa dữ liệu cũ.
 
-SQLite được tạo tại `backend/runtime/nexusops.db`. RAG corpus trong `agent/final_rag_data_normalized_v1.json` chỉ được đọc, không bị chỉnh sửa.
+Các trường thấu chi chính: `account_history_months`, `twelve_month_credit_turnover`, `average_monthly_credit_inflow`, `turnover_stability_ratio`, `expected_utilization_ratio`, `negative_balance_days`, `cleanup_days`, `overdraft_purpose`, `account_conduct_flags`.
 
-## Full API test
+## Kiểm thử
 
 ```powershell
 cd D:\D\abc\backend
-.\.venv313\Scripts\python.exe -m pip install -r requirements-test.txt
-.\.venv313\Scripts\python.exe -m unittest tests.test_full_api -v
+.\.venv313\Scripts\python.exe -m unittest discover -s tests -v
 ```
+
+Test Agent contract và routing:
+
+```powershell
+cd D:\D\abc
+.\backend\.venv313\Scripts\python.exe -m unittest discover -s agent/tests -v
+```
+
+Tạo thêm 1.000 hồ sơ mock trong PostgreSQL, không xóa dữ liệu cũ và chạy lại không tạo trùng:
+
+```powershell
+cd D:\D\abc\backend
+.\.venv313\Scripts\python.exe -m app.seed --count 1000
+```
+
+Nếu backend chạy trong Docker:
+
+```powershell
+docker compose exec backend python -m app.seed --count 1000
+```
+
+ID được tạo theo dạng `MOCK-WC-000001` và `MOCK-OD-000001`. Có thể dùng prefix khác, ví dụ `--prefix DEMO`.
+
+API danh sách mặc định trả tối đa 100 hồ sơ để không kích hoạt workflow cho toàn bộ dữ liệu cùng lúc. Dùng `limit` và `offset` để phân trang, ví dụ `/api/readiness/cases?limit=100&offset=100`.

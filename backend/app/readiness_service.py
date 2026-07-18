@@ -4,6 +4,7 @@ import hashlib
 from datetime import datetime, timezone
 
 from nexusops_agent.contracts.evidence import ValidationResult
+from nexusops_agent.orchestration.router import route_case
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -12,6 +13,7 @@ from .models import AgentArtifactRecord, AssessmentRunRecord, CaseRecord
 from .readiness_schemas import CreateReadinessCase, EvidenceItem, ReadinessCase, ReadinessTraceEvent, ReadinessWorkflow
 from .repositories import AssessmentRepository, CaseRepository, case_context_from_record, input_hash
 from .services import AssessmentService
+from nexusops_agent.nodes.readiness_rules import ReadinessRuleEngine
 
 
 def _text(value: object | None) -> str:
@@ -44,16 +46,54 @@ class ReadinessService:
         self.runs = AssessmentRepository(session)
 
     def list(self, q: str | None = None, product: str | None = None, status: str | None = None) -> list[ReadinessCase]:
+        items, _ = self.list_page(q=q, product=product, status=status, limit=None, offset=0)
+        return items
+
+    def list_page(
+        self,
+        q: str | None = None,
+        product: str | None = None,
+        status: str | None = None,
+        limit: int | None = 100,
+        offset: int = 0,
+    ) -> tuple[list[ReadinessCase], int]:
         records = self.cases.list(q)
-        output: list[ReadinessCase] = []
-        for record in records:
-            if product and record.product != product:
-                continue
-            item = self.get(record.case_id)
-            if status and item.workflow.final_status != status:
-                continue
-            output.append(item)
-        return output
+        if product:
+            records = [record for record in records if record.product == product]
+        if status:
+            matched = [item for record in records for item in [self.get(record.case_id)] if item.workflow.final_status == status]
+            total = len(matched)
+            return (matched[offset:] if limit is None else matched[offset:offset + limit]), total
+        total = len(records)
+        selected = records[offset:] if limit is None else records[offset:offset + limit]
+        return [self._list_item(record) for record in selected], total
+
+    def _list_item(self, record: CaseRecord) -> ReadinessCase:
+        latest = self.runs.latest(record.case_id)
+        if latest is not None:
+            loaded = self.runs.get(latest.run_id) or latest
+            return self._build(record, loaded)
+        context = case_context_from_record(record)
+        workflow = ReadinessWorkflow(
+            case=context,
+            route=route_case(context).nodes,
+            artifacts={},
+            citation_results={},
+            critic_verdict="PENDING",
+            final_status="IN_PROGRESS",
+            trace=[],
+        )
+        return ReadinessCase(
+            id=record.case_id,
+            company_name=record.name,
+            owner=record.owner,
+            submitted_at=record.created_at.isoformat(),
+            sla_due=record.sla,
+            execution_duration_ms=None,
+            context=context,
+            workflow=workflow,
+            evidence=[],
+        )
 
     def get(self, case_id: str) -> ReadinessCase:
         record = self.cases.get(case_id)
@@ -66,6 +106,8 @@ class ReadinessService:
         if self.cases.get(payload.context.case_id) is not None:
             raise DomainError(409, "CASE_ALREADY_EXISTS", "Case already exists")
         context = payload.context
+        # Agent configuration is authoritative for the requirement matrix.
+        context = ReadinessRuleEngine().canonical_case(context)
         display_amount = f"₫{context.requested_amount:,.0f}"
         record = CaseRecord(
             case_id=context.case_id,
@@ -92,6 +134,24 @@ class ReadinessService:
             annual_revenue=context.annual_revenue,
             pretax_profit_last_2_years=context.pretax_profit_last_2_years,
             tax_declared_revenue=context.tax_declared_revenue,
+            current_assets=context.current_assets,
+            current_liabilities=context.current_liabilities,
+            total_debt=context.total_debt,
+            total_assets=context.total_assets,
+            operating_cash_flow=context.operating_cash_flow,
+            annual_debt_service=context.annual_debt_service,
+            collateral_ratio=context.collateral_ratio,
+            twelve_month_account_turnover=context.twelve_month_account_turnover,
+            account_history_months=context.account_history_months,
+            twelve_month_credit_turnover=context.twelve_month_credit_turnover,
+            average_monthly_credit_inflow=context.average_monthly_credit_inflow,
+            turnover_stability_ratio=context.turnover_stability_ratio,
+            expected_utilization_ratio=context.expected_utilization_ratio,
+            negative_balance_days=context.negative_balance_days,
+            cleanup_days=context.cleanup_days,
+            overdraft_purpose=context.overdraft_purpose,
+            loan_purpose=context.loan_purpose,
+            account_conduct_flags=context.account_conduct_flags,
             cic_bad_debt=context.cic_bad_debt,
             kyc_aml_flags=context.kyc_aml_flags,
             case_metadata=context.metadata,
@@ -132,6 +192,7 @@ class ReadinessService:
             owner=record.owner,
             submitted_at=record.created_at.isoformat(),
             sla_due=record.sla,
+            execution_duration_ms=(run.finished_at - run.started_at).total_seconds() * 1000 if run.finished_at else None,
             context=context,
             workflow=workflow,
             evidence=evidence,
@@ -182,7 +243,7 @@ class ReadinessService:
                 reasons=[],
                 related_nodes=run.route,
                 case_field_refs=["existing_customer", "product", "requested_amount", "submitted_documents", "required_documents"],
-                provenance={"captured_by": "case-service", "source": "SQLite"},
+                provenance={"captured_by": "case-service", "source": "PostgreSQL"},
             )
         ]
         claims = [claim for artifact in run.artifacts for claim in artifact.claims]

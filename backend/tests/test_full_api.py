@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import os
 import unittest
 from uuid import uuid4
+
+os.environ.setdefault("NEXUSOPS_ENV", "test")
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -10,7 +13,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, engine as runtime_engine, get_session
 from app.main import app
-from app.seed import seed_cases
+from app.seed import seed_cases, seed_mock_cases
 
 
 class FullApiTest(unittest.TestCase):
@@ -81,6 +84,14 @@ class FullApiTest(unittest.TestCase):
         self.assertEqual(25, inventory["data"]["quality"]["ACCEPTED"])
         self.assertEqual(213, inventory["data"]["quality"]["REVIEW_REQUIRED"])
 
+        products = self.assert_success(self.client.get("/api/v3/products"))
+        self.assertEqual(2, products["meta"]["total"])
+        overdraft_schema = self.assert_success(
+            self.client.get("/api/v3/products/CORPORATE_OVERDRAFT/intake-schema")
+        )
+        self.assertIn("BANK_STATEMENTS_12M", overdraft_schema["data"]["required_documents"])
+        self.assertIn("twelve_month_credit_turnover", {item["name"] for item in overdraft_schema["data"]["fields"]})
+
         # Case catalogue, search and consistent errors.
         cases = self.assert_success(self.client.get("/api/cases"))
         self.assertGreaterEqual(cases["meta"]["total"], 9)
@@ -103,8 +114,11 @@ class FullApiTest(unittest.TestCase):
         self.assertIn("workflow", readiness_case)
         self.assertIn("evidence", readiness_case)
         self.assertIn(readiness_case["context"]["product"], {"WORKING_CAPITAL", "CORPORATE_OVERDRAFT"})
-        self.assertTrue(readiness_case["workflow"]["artifacts"])
-        self.assertTrue(readiness_case["evidence"])
+        self.assertEqual("IN_PROGRESS", readiness_case["workflow"]["final_status"])
+        self.assertFalse(readiness_case["workflow"]["artifacts"])
+        readiness_loaded = self.assert_success(self.client.get(f"/api/readiness/cases/{readiness_case['id']}"))
+        self.assertTrue(readiness_loaded["data"]["workflow"]["artifacts"])
+        self.assertTrue(readiness_loaded["data"]["evidence"])
 
         frontend_case_id = f"CASE-FRONTEND-{uuid4().hex[:8]}"
         create_payload = {
@@ -127,6 +141,15 @@ class FullApiTest(unittest.TestCase):
                 "metadata": {"industry": "Commerce", "branch": "ICTU", "currency": "VND"},
             },
         }
+        preview = self.assert_success(
+            self.client.post("/api/v3/cases/preview-route", json={"context": create_payload["context"]})
+        )
+        self.assertIn("REQUIREMENT_MATRIX", preview["data"]["route"])
+        self.assertIn("CIC_KYC_TOOLS", preview["data"]["route"])
+        self.assertEqual(
+            ["BUSINESS_REGISTRATION", "FINANCIAL_STATEMENTS_2Y", "TAX_RETURNS_2Y", "CIC_REPORT", "WORKING_CAPITAL_PLAN"],
+            preview["data"]["required_documents"],
+        )
         created_readiness = self.assert_success(
             self.client.post(
                 "/api/readiness/cases",
@@ -149,6 +172,108 @@ class FullApiTest(unittest.TestCase):
             "CASE_ALREADY_EXISTS",
         )
 
+        # Agent handoff API and V3 aliases use the same typed contracts.
+        ephemeral_agent = self.assert_success(
+            self.client.post("/api/v1/agent/runs", json=create_payload["context"])
+        )
+        self.assertFalse(ephemeral_agent["meta"]["persisted"])
+        self.assertEqual(frontend_case_id, ephemeral_agent["data"]["case_id"])
+        self.assertFalse(ephemeral_agent["data"]["external_write_executed"])
+
+        v3_cases = self.assert_success(self.client.get("/api/v3/cases"))
+        self.assertGreaterEqual(v3_cases["meta"]["total"], 10)
+        v3_case = self.assert_success(self.client.get(f"/api/v3/cases/{frontend_case_id}"))
+        self.assertEqual(frontend_case_id, v3_case["data"]["id"])
+        v3_package = self.assert_success(
+            self.client.get(f"/api/v3/cases/{frontend_case_id}/readiness-package")
+        )
+        self.assertEqual(frontend_case_id, v3_package["data"]["case"]["id"])
+        v3_nodes = self.assert_success(self.client.get(f"/api/v3/cases/{frontend_case_id}/node-runs"))
+        self.assertTrue({"MANDATORY_CRITIC", "CITATION_VALIDATOR", "POLICY_GATE"}.issubset(
+            {item["node_id"] for item in v3_nodes["data"]}
+        ))
+
+        # Published agent workflows can be listed, cloned, validated and published.
+        workflows = self.assert_success(self.client.get("/api/v3/workflows"))
+        workflow_ids = {item["workflow_id"] for item in workflows["data"]}
+        self.assertTrue({"corporate-overdraft-readiness", "working-capital-readiness"}.issubset(workflow_ids))
+        custom_workflow_id = f"qa-overdraft-{uuid4().hex[:8]}"
+        workflow_payload = {
+            "workflow_id": custom_workflow_id,
+            "version": "1.0.0",
+            "product": "CORPORATE_OVERDRAFT",
+            "nodes": [
+                "EXISTING_CUSTOMER_GATE",
+                "PRODUCT_AGENT",
+                "DOCUMENT_COMPLETENESS",
+                "ACCOUNT_TURNOVER",
+                "CREDIT_AGENT",
+                "MANDATORY_CRITIC",
+                "CITATION_VALIDATOR",
+                "READINESS_RULE_ENGINE",
+                "POLICY_GATE",
+            ],
+            "max_rework": 1,
+        }
+        created_workflow = self.assert_success(
+            self.client.post("/api/v3/workflows", json=workflow_payload),
+            expected_status=201,
+        )
+        self.assertEqual("DRAFT", created_workflow["data"]["status"])
+        validated_workflow = self.assert_success(
+            self.client.post(f"/api/v3/workflows/{custom_workflow_id}/validate")
+        )
+        self.assertTrue(validated_workflow["meta"]["valid"])
+        published_workflow = self.assert_success(
+            self.client.post(f"/api/v3/workflows/{custom_workflow_id}/publish")
+        )
+        self.assertEqual("PUBLISHED", published_workflow["data"]["status"])
+        versions = self.assert_success(
+            self.client.get(f"/api/v3/workflows/{custom_workflow_id}/versions")
+        )
+        self.assertEqual(1, versions["meta"]["total"])
+
+        # Mock tools/actions are allowlisted and idempotent.
+        customer_tool = self.assert_success(self.client.get("/mock/customer/SME-001"))
+        self.assertTrue(customer_tool["data"]["existing_customer"])
+        signature = self.assert_success(
+            self.client.post(
+                "/mock/signature/validate",
+                json={
+                    "document_id": "DOC-001",
+                    "signature_present": True,
+                    "certificate_valid": True,
+                    "digest_matches": True,
+                },
+            )
+        )
+        self.assertEqual("VALID", signature["data"]["status"])
+        mock_headers = {"Idempotency-Key": "mock-dms-once", "X-Approved-By": "manager-1"}
+        mock_body = {"case_id": frontend_case_id, "payload": {"documents": ["TAX_RETURNS_2Y"]}}
+        mock_first = self.assert_success(
+            self.client.post("/mock-dms/document-request", headers=mock_headers, json=mock_body)
+        )
+        mock_second = self.assert_success(
+            self.client.post("/mock-dms/document-request", headers=mock_headers, json=mock_body)
+        )
+        self.assertEqual(mock_first["data"]["external_ref"], mock_second["data"]["external_ref"])
+        mock_status = self.assert_success(
+            self.client.get(f"/mock/actions/{mock_first['data']['external_ref']}")
+        )
+        self.assertEqual("SUCCEEDED", mock_status["data"]["status"])
+
+        evaluation = self.assert_success(
+            self.client.post("/api/v3/evaluations/run"),
+            expected_status=201,
+        )
+        self.assertEqual(3, evaluation["data"]["scenario_count"])
+        self.assertEqual(3, evaluation["data"]["passed"])
+
+        evaluation_detail = self.assert_success(
+            self.client.get(f"/api/v3/evaluations/{evaluation['data']['run_id']}")
+        )
+        self.assertEqual(evaluation["data"]["run_id"], evaluation_detail["data"]["run_id"])
+
         # Assessment run and request idempotency.
         idempotency_key = f"full-api-run-{uuid4().hex}"
         run_response = self.client.post(
@@ -159,7 +284,7 @@ class FullApiTest(unittest.TestCase):
         self.assertEqual("full-api-request", run["meta"]["request_id"])
         self.assertEqual("COMPLETED", run["data"]["status"])
         self.assertEqual("NEEDS_MORE_EVIDENCE", run["data"]["final_status"])
-        self.assertEqual(["MANDATORY_CRITIC", "CITATION_VALIDATOR", "POLICY_GATE"], run["data"]["route"][-3:])
+        self.assertEqual(["MANDATORY_CRITIC", "CITATION_VALIDATOR", "READINESS_RULE_ENGINE", "POLICY_GATE"], run["data"]["route"][-4:])
         run_id = run["data"]["run_id"]
 
         repeated_run = self.assert_success(
@@ -286,6 +411,13 @@ class FullApiTest(unittest.TestCase):
         )
         self.assertEqual(200, cors.status_code)
         self.assertEqual("http://localhost:5173", cors.headers["access-control-allow-origin"])
+
+    def test_bulk_mock_seed_is_idempotent(self) -> None:
+        with self.SessionLocal() as session:
+            inserted, skipped = seed_mock_cases(session, 10, seed=42, prefix="TEST-MOCK")
+            self.assertEqual((10, 0), (inserted, skipped))
+            inserted_again, skipped_again = seed_mock_cases(session, 10, seed=42, prefix="TEST-MOCK")
+            self.assertEqual((0, 10), (inserted_again, skipped_again))
 
 
 if __name__ == "__main__":

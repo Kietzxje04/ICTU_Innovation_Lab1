@@ -1,4 +1,4 @@
-import type { CaseContext, ReadinessCase } from './domain'
+import type { CaseContext, ReadinessCase, WorkflowState } from './domain'
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000').replace(/\/$/, '')
 
@@ -27,6 +27,29 @@ export interface CreateReadinessCasePayload {
   owner: string
 }
 
+export interface ProductIntakeSchema {
+  product: CaseContext['product']
+  required_documents: string[]
+  fields: Array<{ name: string; type: string; required: boolean }>
+  rules: Array<Record<string, unknown>>
+  synthetic: boolean
+}
+
+export interface RoutePreview {
+  product: CaseContext['product']
+  required_documents: string[]
+  route: string[]
+  hardness: number
+  reasons: string[]
+}
+
+interface StepwiseRunResponse {
+  run_id: string
+  state: WorkflowState
+  node?: string
+  run_status?: string
+}
+
 export const readinessApi = {
   list: (signal?: AbortSignal) => request<ReadinessCase[]>('/api/readiness/cases', { signal }),
   get: (caseId: string, signal?: AbortSignal) =>
@@ -39,5 +62,27 @@ export const readinessApi = {
         'Idempotency-Key': `create-${payload.context.case_id}`,
       },
       body: JSON.stringify(payload),
+    }),
+  rerun: async (caseId: string, onNodeResult?: (state: WorkflowState, node: string, index: number) => void | Promise<void>) => {
+    let run = await request<StepwiseRunResponse>(`/api/cases/${encodeURIComponent(caseId)}/workflow-runs`, { method: 'POST' })
+    for (let index = 0; index < run.state.route.length; index += 1) {
+      const node = run.state.route[index]
+      run = await request<StepwiseRunResponse>(`/api/cases/${encodeURIComponent(caseId)}/workflow-runs/${encodeURIComponent(run.run_id)}/nodes/${encodeURIComponent(node)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: run.state }),
+      })
+      await onNodeResult?.(run.state, node, index)
+    }
+    return request<ReadinessCase>(`/api/readiness/cases/${encodeURIComponent(caseId)}`)
+  },
+  productSchema: (product: CaseContext['product'], signal?: AbortSignal) =>
+    request<ProductIntakeSchema>(`/api/v3/products/${product}/intake-schema`, { signal }),
+  previewRoute: (context: CaseContext, signal?: AbortSignal) =>
+    request<RoutePreview>('/api/v3/cases/preview-route', {
+      method: 'POST',
+      signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ context }),
     }),
 }

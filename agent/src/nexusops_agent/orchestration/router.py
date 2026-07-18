@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 from nexusops_agent.contracts.case import CaseContext
 from nexusops_agent.contracts.enums import ProductType
+from nexusops_agent.nodes.readiness_rules import ReadinessRuleEngine
 
 
 class RouteDecision(BaseModel):
@@ -13,14 +14,15 @@ class RouteDecision(BaseModel):
 
 
 def route_case(case: CaseContext) -> RouteDecision:
-    nodes = ["EXISTING_CUSTOMER_GATE", "PRODUCT_AGENT", "DOCUMENT_COMPLETENESS"]
+    case = ReadinessRuleEngine().canonical_case(case)
+    nodes = ["EXISTING_CUSTOMER_GATE", "PRODUCT_AGENT", "DOCUMENT_CLASSIFIER", "REQUIREMENT_MATRIX", "DOCUMENT_COMPLETENESS"]
     reasons: list[str] = []
     hardness = 0
 
     if case.product == ProductType.CORPORATE_OVERDRAFT:
-        nodes.extend(["ACCOUNT_TURNOVER", "CREDIT_AGENT"])
+        nodes.extend(["ACCOUNT_TURNOVER", "OVERDRAFT_METRICS", "FINANCIAL_METRICS", "TAX_CONSISTENCY", "CIC_KYC_TOOLS", "CREDIT_AGENT"])
     else:
-        nodes.extend(["FINANCIAL_METRICS", "TAX_CONSISTENCY", "CREDIT_AGENT"])
+        nodes.extend(["FINANCIAL_METRICS", "TAX_CONSISTENCY", "CIC_KYC_TOOLS", "CREDIT_AGENT"])
 
     missing = set(case.required_documents) - set(case.submitted_documents)
     if missing:
@@ -39,5 +41,5 @@ def route_case(case: CaseContext) -> RouteDecision:
         hardness += 2
         reasons.append("CIC_BAD_DEBT")
 
-    nodes.extend(["READINESS_RULE_ENGINE", "MANDATORY_CRITIC", "CITATION_VALIDATOR", "POLICY_GATE"])
+    nodes.extend(["MANDATORY_CRITIC", "CITATION_VALIDATOR", "READINESS_RULE_ENGINE", "POLICY_GATE"])
     return RouteDecision(hardness=hardness, nodes=list(dict.fromkeys(nodes)), reasons=reasons)

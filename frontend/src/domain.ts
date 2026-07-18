@@ -24,6 +24,24 @@ export interface CaseContext {
   annual_revenue: number | null
   pretax_profit_last_2_years: number[]
   tax_declared_revenue: number | null
+  current_assets?: number | null
+  current_liabilities?: number | null
+  total_debt?: number | null
+  total_assets?: number | null
+  operating_cash_flow?: number | null
+  annual_debt_service?: number | null
+  collateral_ratio?: number | null
+  twelve_month_account_turnover?: number | null
+  account_history_months?: number | null
+  twelve_month_credit_turnover?: number | null
+  average_monthly_credit_inflow?: number | null
+  turnover_stability_ratio?: number | null
+  expected_utilization_ratio?: number | null
+  negative_balance_days?: number | null
+  cleanup_days?: number | null
+  overdraft_purpose?: string | null
+  loan_purpose?: string | null
+  account_conduct_flags?: string[]
   cic_bad_debt: boolean | null
   kyc_aml_flags: string[]
   metadata: Record<string, string>
@@ -102,6 +120,7 @@ export interface ReadinessCase {
   owner: string
   submitted_at: string
   sla_due: string
+  execution_duration_ms?: number | null
   context: CaseContext
   workflow: WorkflowState
   evidence: EvidenceItem[]
@@ -120,6 +139,10 @@ export const FINAL_STATUS_LABELS: Record<FinalStatus, string> = {
 }
 
 export const NODE_LABELS: Record<string, string> = {
+  DOCUMENT_CLASSIFIER: 'Phân loại tài liệu',
+  REQUIREMENT_MATRIX: 'Ma trận hồ sơ sản phẩm',
+  OVERDRAFT_METRICS: 'Chỉ số vận hành thấu chi',
+  CIC_KYC_TOOLS: 'Đối chiếu CIC và KYC',
   EXISTING_CUSTOMER_GATE: 'Kiểm tra khách hàng hiện hữu',
   PRODUCT_AGENT: 'Agent sản phẩm',
   DOCUMENT_COMPLETENESS: 'Độ đầy đủ tài liệu',
@@ -135,11 +158,11 @@ export const NODE_LABELS: Record<string, string> = {
 }
 
 export function buildRoute(context: CaseContext) {
-  const route = ['EXISTING_CUSTOMER_GATE', 'PRODUCT_AGENT', 'DOCUMENT_COMPLETENESS']
-  if (context.product === 'CORPORATE_OVERDRAFT') route.push('ACCOUNT_TURNOVER', 'CREDIT_AGENT')
-  else route.push('FINANCIAL_METRICS', 'TAX_CONSISTENCY', 'CREDIT_AGENT')
+  const route = ['EXISTING_CUSTOMER_GATE', 'PRODUCT_AGENT', 'DOCUMENT_CLASSIFIER', 'REQUIREMENT_MATRIX', 'DOCUMENT_COMPLETENESS']
+  if (context.product === 'CORPORATE_OVERDRAFT') route.push('ACCOUNT_TURNOVER', 'OVERDRAFT_METRICS', 'FINANCIAL_METRICS', 'TAX_CONSISTENCY', 'CIC_KYC_TOOLS', 'CREDIT_AGENT')
+  else route.push('FINANCIAL_METRICS', 'TAX_CONSISTENCY', 'CIC_KYC_TOOLS', 'CREDIT_AGENT')
   if (context.kyc_aml_flags.length) route.push('COMPLIANCE_AGENT')
-  route.push('READINESS_RULE_ENGINE', 'MANDATORY_CRITIC', 'CITATION_VALIDATOR', 'POLICY_GATE')
+  route.push('MANDATORY_CRITIC', 'CITATION_VALIDATOR', 'READINESS_RULE_ENGINE', 'POLICY_GATE')
   return route
 }
 

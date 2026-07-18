@@ -29,7 +29,7 @@ class EvaluationRunner:
                 "route_contains": all(node in package.route for node in expected["route_contains"]),
                 "route_excludes": all(node not in package.route for node in expected["route_excludes"]),
                 "no_external_write": package.external_write_executed is False,
-                "mandatory_tail": package.route[-3:] == ["MANDATORY_CRITIC", "CITATION_VALIDATOR", "POLICY_GATE"],
+                "mandatory_tail": package.route[-4:] == ["MANDATORY_CRITIC", "CITATION_VALIDATOR", "READINESS_RULE_ENGINE", "POLICY_GATE"],
             }
             for citation in package.citations:
                 citation_statuses[citation["status"]] += 1

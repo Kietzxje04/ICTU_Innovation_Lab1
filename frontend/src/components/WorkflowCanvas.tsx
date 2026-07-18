@@ -4,19 +4,29 @@ import {
   Minimize2, Minus, Play, Plus, RefreshCw, Route, ScrollText, ShieldCheck, Sparkles,
   Timer, XCircle, Zap,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { NODE_LABELS, PRODUCT_LABELS, type AgentArtifact, type CaseContext, type EvidenceItem, type WorkflowState } from '../domain'
+import { NODE_LABELS, PRODUCT_LABELS, type AgentArtifact, type CaseContext, type EvidenceItem, type ReadinessCase, type WorkflowState } from '../domain'
 import { ArtifactPill } from './Status'
 
 type RunnerStatus = 'idle' | 'running' | 'completed'
 type NodeKind = 'business' | 'ai' | 'control'
 type RuntimeResult = 'success' | 'warning' | 'error'
 
+const renderNodeTransition = () => new Promise<void>((resolve) => {
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => window.setTimeout(resolve, 320))
+  })
+})
+
 const AI_NODES = new Set(['PRODUCT_AGENT', 'CREDIT_AGENT', 'COMPLIANCE_AGENT', 'MANDATORY_CRITIC'])
 const CONTROL_NODES = new Set(['READINESS_RULE_ENGINE', 'CITATION_VALIDATOR', 'POLICY_GATE'])
 
 const FIELD_LABELS: Record<string, string> = {
+  account_history_months: 'Lịch sử tài khoản', twelve_month_credit_turnover: 'Doanh số ghi Có 12 tháng', average_monthly_credit_inflow: 'Dòng tiền ghi Có bình quân tháng',
+  requested_limit_to_monthly_inflow: 'Hạn mức đề nghị / dòng tiền tháng', turnover_stability_ratio: 'Độ ổn định dòng tiền', expected_utilization_ratio: 'Tỷ lệ sử dụng dự kiến',
+  negative_balance_days: 'Số ngày dư nợ âm', cleanup_days: 'Số ngày hoàn trả', overdraft_purpose: 'Mục đích thấu chi', loan_purpose: 'Mục đích vay',
+  account_conduct_flags: 'Cờ hành vi tài khoản', collateral_ratio: 'Tỷ lệ tài sản bảo đảm', recognized_documents: 'Tài liệu đã phân loại', policy_source: 'Nguồn chính sách',
   case_id: 'Mã hồ sơ', customer_id: 'Mã khách hàng', product: 'Sản phẩm', existing_customer: 'Khách hàng hiện hữu',
   relationship_months: 'Thời gian quan hệ', requested_amount: 'Số tiền đề nghị', metadata: 'Thông tin bổ sung',
   required_documents: 'Tài liệu bắt buộc', submitted_documents: 'Tài liệu đã nộp', source: 'Nguồn dữ liệu',
@@ -48,6 +58,8 @@ function getNodeKind(node: string): NodeKind {
 
 function getNodeDescription(node: string) {
   const descriptions: Record<string, string> = {
+    DOCUMENT_CLASSIFIER: 'Chuẩn hóa loại tài liệu đã nộp theo vocabulary của Agent.', REQUIREMENT_MATRIX: 'Nạp danh mục hồ sơ bắt buộc từ cấu hình sản phẩm của Agent.',
+    OVERDRAFT_METRICS: 'Tính chỉ số thấu chi quay vòng từ dòng tiền ghi Có và hạn mức đề nghị.', CIC_KYC_TOOLS: 'Đối chiếu tín hiệu CIC, KYC và AML trước khi tổng hợp readiness.',
     EXISTING_CUSTOMER_GATE: 'Xác nhận khách hàng có nằm trong phạm vi xử lý trước khi phân tích.', PRODUCT_AGENT: 'AI xác định sản phẩm và các điều kiện cần kiểm tra.',
     DOCUMENT_COMPLETENESS: 'Đối chiếu tài liệu đã nộp với danh mục bắt buộc.', ACCOUNT_TURNOVER: 'Đánh giá mức độ ổn định của dòng tiền tài khoản.',
     FINANCIAL_METRICS: 'Tổng hợp doanh thu và xu hướng lợi nhuận hai năm.', TAX_CONSISTENCY: 'Đối chiếu doanh thu báo cáo với doanh thu khai thuế.',
@@ -64,11 +76,15 @@ function getNodeInput(node: string, context: CaseContext, workflow: WorkflowStat
     case 'EXISTING_CUSTOMER_GATE': return { ...common, existing_customer: context.existing_customer, relationship_months: context.relationship_months }
     case 'PRODUCT_AGENT': return { ...common, requested_amount: context.requested_amount, metadata: context.metadata }
     case 'DOCUMENT_COMPLETENESS': return { required_documents: context.required_documents, submitted_documents: context.submitted_documents }
-    case 'ACCOUNT_TURNOVER': return { customer_id: context.customer_id, relationship_months: context.relationship_months, source: 'core_banking_mock' }
+    case 'DOCUMENT_CLASSIFIER': return { submitted_documents: context.submitted_documents }
+    case 'REQUIREMENT_MATRIX': return { product: context.product, required_documents: context.required_documents }
+    case 'ACCOUNT_TURNOVER': return { customer_id: context.customer_id, account_history_months: context.account_history_months, twelve_month_credit_turnover: context.twelve_month_credit_turnover, average_monthly_credit_inflow: context.average_monthly_credit_inflow }
+    case 'OVERDRAFT_METRICS': return { requested_amount: context.requested_amount, twelve_month_credit_turnover: context.twelve_month_credit_turnover, average_monthly_credit_inflow: context.average_monthly_credit_inflow, turnover_stability_ratio: context.turnover_stability_ratio, expected_utilization_ratio: context.expected_utilization_ratio, negative_balance_days: context.negative_balance_days, cleanup_days: context.cleanup_days, account_conduct_flags: context.account_conduct_flags }
     case 'FINANCIAL_METRICS': return { annual_revenue: context.annual_revenue, pretax_profit_last_2_years: context.pretax_profit_last_2_years }
     case 'TAX_CONSISTENCY': return { annual_revenue: context.annual_revenue, tax_declared_revenue: context.tax_declared_revenue }
     case 'CREDIT_AGENT': return { requested_amount: context.requested_amount, cic_bad_debt: context.cic_bad_debt, upstream_artifacts: Object.keys(workflow.artifacts).filter((key) => ['FINANCIAL_METRICS', 'ACCOUNT_TURNOVER', 'TAX_CONSISTENCY'].includes(key)) }
     case 'COMPLIANCE_AGENT': return { kyc_aml_flags: context.kyc_aml_flags, rag_namespace: 'AML' }
+    case 'CIC_KYC_TOOLS': return { cic_bad_debt: context.cic_bad_debt, kyc_aml_flags: context.kyc_aml_flags }
     case 'READINESS_RULE_ENGINE': return { route: workflow.route, artifact_statuses: Object.fromEntries(Object.entries(workflow.artifacts).map(([key, value]) => [key, value.status])) }
     case 'MANDATORY_CRITIC': return { artifacts_to_review: Object.keys(workflow.artifacts).filter((key) => key !== 'MANDATORY_CRITIC'), max_rework: 1 }
     case 'CITATION_VALIDATOR': return { citation_ids: Object.keys(workflow.citation_results), checks: ['exact_quote', 'content_hash', 'authority', 'validity'] }
@@ -108,9 +124,9 @@ function HumanDataPanel({ title, icon, data, tone }: { title: string; icon: Reac
 
 function getIssueTarget(node: string) {
   if (node === 'EXISTING_CUSTOMER_GATE' || node === 'PRODUCT_AGENT') return 'issue-customer'
-  if (node === 'DOCUMENT_COMPLETENESS') return 'issue-documents'
-  if (['ACCOUNT_TURNOVER', 'FINANCIAL_METRICS', 'TAX_CONSISTENCY'].includes(node)) return 'issue-financial'
-  if (['CREDIT_AGENT', 'COMPLIANCE_AGENT', 'READINESS_RULE_ENGINE', 'MANDATORY_CRITIC'].includes(node)) return 'issue-artifacts'
+  if (['DOCUMENT_COMPLETENESS', 'DOCUMENT_CLASSIFIER', 'REQUIREMENT_MATRIX'].includes(node)) return 'issue-documents'
+  if (['ACCOUNT_TURNOVER', 'OVERDRAFT_METRICS', 'FINANCIAL_METRICS', 'TAX_CONSISTENCY'].includes(node)) return 'issue-financial'
+  if (['CIC_KYC_TOOLS', 'CREDIT_AGENT', 'COMPLIANCE_AGENT', 'READINESS_RULE_ENGINE', 'MANDATORY_CRITIC'].includes(node)) return 'issue-artifacts'
   if (node === 'CITATION_VALIDATOR') return 'issue-evidence'
   return 'issue-hitl'
 }
@@ -131,16 +147,9 @@ function getNodeCitations(node: string, context: CaseContext, evidence: Evidence
   }))
 }
 
-function computeDurations(route: string[], totalMs = 12_000) {
-  const weights = route.map((node) => getNodeKind(node) === 'ai' ? 1.65 : getNodeKind(node) === 'control' ? 1.15 : .85)
-  const sum = weights.reduce((total, value) => total + value, 0)
-  return weights.map((weight) => Math.round(totalMs * weight / sum))
-}
-
-const delay = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds))
-
-export function WorkflowCanvas({ context, workflow, evidence, onRunComplete }: { context: CaseContext; workflow: WorkflowState; evidence: EvidenceItem[]; onRunComplete?: () => void }) {
+export function WorkflowCanvas({ context, workflow, evidence, onRun, onRunComplete }: { context: CaseContext; workflow: WorkflowState; evidence: EvidenceItem[]; onRun: (onNodeResult: (state: WorkflowState, node: string, index: number) => void | Promise<void>) => Promise<ReadinessCase>; onRunComplete?: () => void }) {
   const [runnerStatus, setRunnerStatus] = useState<RunnerStatus>('idle')
+  const [displayWorkflow, setDisplayWorkflow] = useState(workflow)
   const [activeIndex, setActiveIndex] = useState(-1)
   const [completedCount, setCompletedCount] = useState(0)
   const [runtimeResults, setRuntimeResults] = useState<Record<string, RuntimeResult>>({})
@@ -148,13 +157,14 @@ export function WorkflowCanvas({ context, workflow, evidence, onRunComplete }: {
   const [elapsedMs, setElapsedMs] = useState(0)
   const [detailOpen, setDetailOpen] = useState(true)
   const [runtimeNotice, setRuntimeNotice] = useState('')
+  const [runError, setRunError] = useState('')
   const [zoom, setZoom] = useState(.9)
   const [focusMode, setFocusMode] = useState(false)
   const runToken = useRef(0)
   const viewportRef = useRef<HTMLDivElement>(null)
-  const durations = useMemo(() => computeDurations(workflow.route), [workflow.route])
 
   useEffect(() => () => { runToken.current += 1 }, [])
+  useEffect(() => setDisplayWorkflow(workflow), [workflow])
   useEffect(() => {
     if (activeIndex < 0) return
     const viewport = viewportRef.current
@@ -177,33 +187,44 @@ export function WorkflowCanvas({ context, workflow, evidence, onRunComplete }: {
 
   const runWorkflow = async () => {
     const token = ++runToken.current
-    setRunnerStatus('running'); setActiveIndex(0); setCompletedCount(0); setElapsedMs(0); setRuntimeResults({}); setRuntimeNotice('')
-    for (let index = 0; index < workflow.route.length; index += 1) {
+    setRunnerStatus('running'); setActiveIndex(0); setCompletedCount(0); setElapsedMs(0); setRuntimeResults({}); setRuntimeNotice('Backend Agent runtime đang thực thi route thật. Mỗi node chỉ chuyển tiếp sau khi nhận được kết quả runtime.'); setRunError('')
+    const startedAt = performance.now()
+    try {
+      const result = await onRun(async (state, node, index) => {
+        if (token !== runToken.current) return
+        setDisplayWorkflow(state)
+        const status = state.artifacts[node]?.status ?? 'PASS'
+        const nodeResult: RuntimeResult = status === 'BLOCKED' ? 'error' : status === 'WARNING' || status === 'REVIEW_REQUIRED' ? 'warning' : 'success'
+        setRuntimeResults((current) => ({ ...current, [node]: nodeResult }))
+        setCompletedCount(index + 1)
+        setSelectedNode(node); setDetailOpen(true)
+        setActiveIndex(index + 1 < state.route.length ? index + 1 : -1)
+        setRuntimeNotice(`${NODE_LABELS[node] ?? node} đã trả kết quả ${status}. ${index + 1 < state.route.length ? `Đang chuyển sang ${NODE_LABELS[state.route[index + 1]] ?? state.route[index + 1]}.` : 'Đang hoàn tất workflow.'}`)
+        await renderNodeTransition()
+      })
       if (token !== runToken.current) return
-      const node = workflow.route[index]
-      setActiveIndex(index); setSelectedNode(node); setDetailOpen(true)
-      await delay(durations[index])
+      const backendElapsedMs = performance.now() - startedAt
+      setElapsedMs(backendElapsedMs)
+      setActiveIndex(-1); setElapsedMs(backendElapsedMs); setRunnerStatus('completed')
+      setRuntimeNotice('Agentic workflow đã hoàn tất từ kết quả backend thực tế, bao gồm Mandatory Critic và các control gate.')
+      onRunComplete?.()
+    } catch (reason) {
       if (token !== runToken.current) return
-      const status = workflow.artifacts[node]?.status ?? 'PASS'
-      const result: RuntimeResult = status === 'BLOCKED' ? 'error' : status === 'WARNING' || status === 'REVIEW_REQUIRED' ? 'warning' : 'success'
-      setRuntimeResults((current) => ({ ...current, [node]: result }))
-      if (result === 'error') setRuntimeNotice(`${NODE_LABELS[node] ?? node} phát hiện lỗi chặn. Workflow vẫn chạy Mandatory Critic và Policy Gate để tạo hướng xử lý an toàn.`)
-      else if (result === 'warning') setRuntimeNotice((current) => current.includes('lỗi chặn') ? current : `${NODE_LABELS[node] ?? node} phát hiện điểm cần rà soát. Vấn đề được chuyển tiếp sang các khâu kiểm soát.`)
-      setCompletedCount(index + 1)
+      setRunnerStatus('idle'); setRunError(reason instanceof Error ? reason.message : 'Không thể chạy agentic workflow'); setRuntimeNotice('')
     }
-    setActiveIndex(-1); setElapsedMs(durations.reduce((sum, value) => sum + value, 0)); setRunnerStatus('completed'); onRunComplete?.()
   }
 
-  const resetWorkflow = () => { runToken.current += 1; setRunnerStatus('idle'); setActiveIndex(-1); setCompletedCount(0); setElapsedMs(0); setRuntimeResults({}); setRuntimeNotice('') }
+  const resetWorkflow = () => { runToken.current += 1; setRunnerStatus('idle'); setActiveIndex(-1); setCompletedCount(0); setElapsedMs(0); setRuntimeResults({}); setRuntimeNotice(''); setRunError('') }
   const fitWorkflow = () => { setZoom(.8); viewportRef.current?.scrollTo({ left: 0, behavior: 'smooth' }) }
-  const artifact = workflow.artifacts[selectedNode]
+  const artifact = displayWorkflow.artifacts[selectedNode]
   const citations = getNodeCitations(selectedNode, context, evidence, artifact)
   const progress = workflow.route.length ? completedCount / workflow.route.length * 100 : 0
 
   return <section className={`work-card workflow-studio ${focusMode ? 'focus-mode' : ''}`}>
-    <div className="workflow-studio-header"><div className="workflow-heading"><div className="workflow-logo"><Route size={18} /></div><div><h2>Visual Hybrid-Agent Workflow</h2><p>Nghiệp vụ, AI và khâu kiểm soát chạy theo route của hồ sơ</p></div></div><div className="runner-toolbar"><span className={`runner-state ${runnerStatus}`}><i />{runnerStatus === 'idle' ? 'Sẵn sàng' : runnerStatus === 'running' ? 'Đang thực thi' : 'Đã hoàn tất'}</span><span className="runner-time"><Timer size={13} />{(elapsedMs / 1000).toFixed(1)}s / 12.0s</span><div className="canvas-controls"><button onClick={() => setZoom((value) => Math.max(.65, value - .1))} aria-label="Thu nhỏ"><Minus size={13} /></button><span>{Math.round(zoom * 100)}%</span><button onClick={() => setZoom((value) => Math.min(1.2, value + .1))} aria-label="Phóng to"><Plus size={13} /></button><button onClick={fitWorkflow} aria-label="Vừa khung"><LocateFixed size={13} /></button><button onClick={() => setFocusMode((value) => !value)} aria-label="Chế độ tập trung">{focusMode ? <Minimize2 size={13} /> : <Maximize2 size={13} />}</button></div>{runnerStatus === 'completed' && <button className="runner-reset" onClick={resetWorkflow}><RefreshCw size={14} /> Đặt lại</button>}<button className="runner-play" disabled={runnerStatus === 'running'} onClick={runWorkflow}>{runnerStatus === 'running' ? <LoaderCircle className="spin" size={15} /> : <Play size={15} fill="currentColor" />}{runnerStatus === 'completed' ? 'Chạy lại' : runnerStatus === 'running' ? 'Đang chạy...' : 'Chạy workflow'}</button></div></div>
+    <div className="workflow-studio-header"><div className="workflow-heading"><div className="workflow-logo"><Route size={18} /></div><div><h2>Visual Hybrid-Agent Workflow</h2><p>Nghiệp vụ, AI và khâu kiểm soát chạy theo route của hồ sơ</p></div></div><div className="runner-toolbar"><span className={`runner-state ${runnerStatus}`}><i />{runnerStatus === 'idle' ? 'Sẵn sàng' : runnerStatus === 'running' ? 'Đang thực thi' : 'Đã hoàn tất'}</span><span className="runner-time"><Timer size={13} />{(elapsedMs / 1000).toFixed(1)}s</span><div className="canvas-controls"><button onClick={() => setZoom((value) => Math.max(.65, value - .1))} aria-label="Thu nhỏ"><Minus size={13} /></button><span>{Math.round(zoom * 100)}%</span><button onClick={() => setZoom((value) => Math.min(1.2, value + .1))} aria-label="Phóng to"><Plus size={13} /></button><button onClick={fitWorkflow} aria-label="Vừa khung"><LocateFixed size={13} /></button><button onClick={() => setFocusMode((value) => !value)} aria-label="Chế độ tập trung">{focusMode ? <Minimize2 size={13} /> : <Maximize2 size={13} />}</button></div>{runnerStatus === 'completed' && <button className="runner-reset" onClick={resetWorkflow}><RefreshCw size={14} /> Đặt lại</button>}<button className="runner-play" disabled={runnerStatus === 'running'} onClick={runWorkflow}>{runnerStatus === 'running' ? <LoaderCircle className="spin" size={15} /> : <Play size={15} fill="currentColor" />}{runnerStatus === 'completed' ? 'Chạy lại' : runnerStatus === 'running' ? 'Đang chạy...' : 'Chạy workflow'}</button></div></div>
     <div className="runner-progress"><i style={{ width: `${progress}%` }} /></div>
     {runtimeNotice && <div className={`runtime-notice ${Object.values(runtimeResults).includes('error') ? 'error' : 'warning'}`}>{Object.values(runtimeResults).includes('error') ? <XCircle size={15} /> : <AlertTriangle size={15} />}<span>{runtimeNotice}</span></div>}
+    {runError && <div className="runtime-notice error"><XCircle size={15} /><span>{runError}</span></div>}
     <div className="workflow-legend"><span><i className="business" /> Nghiệp vụ</span><span><i className="ai" /> AI / RAG</span><span><i className="control" /> Kiểm soát an toàn</span><small>Chọn node để xem dữ liệu và trích dẫn</small></div>
     <div className="workflow-canvas-viewport" ref={viewportRef}><div className="workflow-canvas-grid" /><div className="visual-pipeline" style={{ zoom } as CSSProperties}><div className={`terminal-node start ${runnerStatus !== 'idle' ? 'completed' : ''}`}><span><Zap size={15} /></span><strong>Tiếp nhận hồ sơ</strong><small>Kích hoạt quy trình</small></div>{workflow.route.map((node, index) => {
       const kind = getNodeKind(node); const isRunning = runnerStatus === 'running' && activeIndex === index; const isCompleted = completedCount > index; const isWaiting = runnerStatus === 'running' && activeIndex < index; const result = runtimeResults[node]; const NodeIcon = kind === 'ai' ? BrainCircuit : kind === 'control' ? ShieldCheck : GitBranch
@@ -212,4 +233,3 @@ export function WorkflowCanvas({ context, workflow, evidence, onRunComplete }: {
     <div className={`node-inspector ${detailOpen ? 'open' : ''}`}><button className="inspector-toggle" onClick={() => setDetailOpen((current) => !current)}><div><Code2 size={15} /><span>Chi tiết khâu xử lý</span><strong>{NODE_LABELS[selectedNode] ?? selectedNode}</strong></div><ChevronDown size={16} /></button>{detailOpen && <div className="inspector-content"><div className="inspector-summary"><div className={`inspector-icon ${getNodeKind(selectedNode)}`}>{getNodeKind(selectedNode) === 'ai' ? <Bot size={19} /> : getNodeKind(selectedNode) === 'control' ? <ShieldCheck size={19} /> : <GitBranch size={19} />}</div><div><div><span>{getNodeKind(selectedNode) === 'ai' ? 'KHÂU AI / RAG' : getNodeKind(selectedNode) === 'control' ? 'KHÂU KIỂM SOÁT' : 'KHÂU NGHIỆP VỤ'}</span>{artifact && <ArtifactPill status={artifact.status} />}</div><h3>{NODE_LABELS[selectedNode] ?? selectedNode}</h3><p>{getNodeDescription(selectedNode)}</p></div></div><div className="human-io-grid"><HumanDataPanel title="Dữ liệu được sử dụng" icon={<FileInput size={15} />} data={getNodeInput(selectedNode, context, workflow)} /><div className="io-arrow"><ChevronRight size={18} /></div><HumanDataPanel title="Kết quả của khâu" icon={<FileOutput size={15} />} data={getNodeOutput(selectedNode, artifact, workflow)} tone="output" /></div><aside className="node-citations"><div className="citation-heading"><ScrollText size={15} /><div><strong>Trích dẫn và nguồn</strong><span>Mở trang căn cứ đầy đủ</span></div></div>{citations.map((citation) => <Link key={citation.id} className={citation.issue ? 'has-issue' : ''} to={`/citations/${context.case_id}/${encodeURIComponent(citation.id)}`} state={{ issueTarget: citation.target }}><div><span>{citation.source}</span>{citation.issue && <b><AlertTriangle size={10} /> Có vấn đề</b>}</div><blockquote>“{citation.quote}”</blockquote><small>{citation.reference}<ExternalLink size={10} /></small></Link>)}</aside></div>}</div>
   </section>
 }
-
