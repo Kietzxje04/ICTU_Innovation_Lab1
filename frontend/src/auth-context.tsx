@@ -2,34 +2,27 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { readinessApi, type AuthUser } from './api'
 
 interface AuthContextValue {
-  token: string | null
   user: AuthUser | null
   isAuthenticated: boolean
   isCheckingSession: boolean
   login: (username: string, password: string) => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
-const TOKEN_KEY = 'nexusops-access-token'
 const USER_KEY = 'nexusops-auth-user'
 
-window.localStorage.removeItem(TOKEN_KEY)
-window.localStorage.removeItem(USER_KEY)
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState(() => window.sessionStorage.getItem(TOKEN_KEY))
+  const [isCheckingSession, setIsCheckingSession] = useState(true)
   const [user, setUser] = useState<AuthUser | null>(() => {
     const stored = window.sessionStorage.getItem(USER_KEY)
     return stored ? JSON.parse(stored) as AuthUser : null
   })
-  const [isCheckingSession, setIsCheckingSession] = useState(Boolean(token))
   const clearSession = () => {
-    setToken(null); setUser(null)
-    window.sessionStorage.removeItem(TOKEN_KEY); window.sessionStorage.removeItem(USER_KEY)
+    setUser(null)
+    window.sessionStorage.removeItem(USER_KEY)
   }
   useEffect(() => {
-    if (!token) { setIsCheckingSession(false); return }
     setIsCheckingSession(true)
     readinessApi.me()
       .then((currentUser) => {
@@ -38,20 +31,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(clearSession)
       .finally(() => setIsCheckingSession(false))
-  }, [token])
+  }, [])
   const value = useMemo<AuthContextValue>(() => ({
-    token,
     user,
-    isAuthenticated: Boolean(token && user),
+    isAuthenticated: Boolean(user),
     isCheckingSession,
     login: async (username, password) => {
       const result = await readinessApi.login(username, password)
-      setToken(result.access_token); setUser(result.user)
-      window.sessionStorage.setItem(TOKEN_KEY, result.access_token)
       window.sessionStorage.setItem(USER_KEY, JSON.stringify(result.user))
+      setUser(result.user)
     },
-    logout: clearSession,
-  }), [token, user, isCheckingSession])
+    logout: async () => { await readinessApi.logout().catch(() => undefined); clearSession() },
+  }), [user, isCheckingSession])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
@@ -59,8 +50,4 @@ export function useAuth() {
   const value = useContext(AuthContext)
   if (!value) throw new Error('useAuth must be used inside AuthProvider')
   return value
-}
-
-export function authToken() {
-  return window.sessionStorage.getItem(TOKEN_KEY)
 }

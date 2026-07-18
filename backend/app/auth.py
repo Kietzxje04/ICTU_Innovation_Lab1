@@ -6,7 +6,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from fastapi import Depends, Header
+from fastapi import Cookie, Depends, Header
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -45,11 +45,13 @@ class CurrentUser:
 
 def current_user(
     authorization: str | None = Header(default=None),
+    nexusops_session: str | None = Cookie(default=None),
     session: Session = Depends(get_session),
 ) -> CurrentUser:
-    if not authorization or not authorization.startswith("Bearer "):
+    token = nexusops_session or (authorization[7:] if authorization and authorization.startswith("Bearer ") else None)
+    if not token:
         raise DomainError(401, "AUTHENTICATION_REQUIRED", "Vui lòng đăng nhập để tiếp tục")
-    token_hash = hashlib.sha256(authorization[7:].encode()).hexdigest()
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
     auth_session = session.get(AuthSessionRecord, token_hash)
     expires_at = auth_session.expires_at if auth_session else None
     if expires_at and expires_at.tzinfo is None:
@@ -102,3 +104,12 @@ def create_session(session: Session, user: UserRecord) -> tuple[str, datetime]:
     session.add(AuthSessionRecord(token_hash=hashlib.sha256(token.encode()).hexdigest(), user_id=user.user_id, expires_at=expires))
     session.commit()
     return token, expires
+
+
+def revoke_session(session: Session, token: str | None) -> None:
+    if not token:
+        return
+    record = session.get(AuthSessionRecord, hashlib.sha256(token.encode()).hexdigest())
+    if record:
+        session.delete(record)
+        session.commit()

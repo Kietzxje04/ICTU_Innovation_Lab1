@@ -12,6 +12,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = window.sessionStorage.getItem('nexusops-access-token')
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
+    credentials: 'include',
     headers: {
       Accept: 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -64,10 +65,11 @@ interface StepwiseRunResponse {
 }
 
 export const readinessApi = {
-  login: async (username: string, password: string) => request<{ access_token: string; token_type: string; expires_at: string; user: AuthUser }>('/api/auth/login', {
+  login: async (username: string, password: string) => request<{ access_token?: string; token_type?: string; expires_at?: string; user: AuthUser }>('/api/auth/login', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }),
   }),
   me: () => request<AuthUser>('/api/auth/me'),
+  logout: () => request<{ logged_out: boolean }>('/api/auth/logout', { method: 'POST' }),
   list: (signal?: AbortSignal) => request<ReadinessCase[]>('/api/readiness/cases', { signal }),
   get: (caseId: string, signal?: AbortSignal) =>
     request<ReadinessCase>(`/api/readiness/cases/${encodeURIComponent(caseId)}`, { signal }),

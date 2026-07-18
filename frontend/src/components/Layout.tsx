@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Bot, CircleHelp, FilePlus2, Gauge, History, Landmark, Menu, Search, Settings, X } from 'lucide-react'
+import { Bot, CircleHelp, FilePlus2, Gauge, History, Landmark, LogOut, Menu, Search, Settings, UserCircle, X } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useReadiness } from '../readiness-context'
 import { useAuth } from '../auth-context'
+import './ProfileMenu.css'
 
 const navItems = [
   { to: '/', label: 'Bảng điều hành hồ sơ', icon: Gauge, end: true },
@@ -12,6 +13,7 @@ const navItems = [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const { dataMode } = useReadiness()
   const { user, logout } = useAuth()
   return <div className="app-shell">
@@ -24,7 +26,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     </aside>
     {open && <button className="nav-backdrop" onClick={() => setOpen(false)} />}
     <div className="app-main">
-      <header className="topbar"><button className="menu-button" onClick={() => setOpen(true)}><Menu /></button><div className="topbar-title">NexusOps <span>Điều phối tác nhân</span></div><div className="global-search"><Search size={16} /><input aria-label="Tìm kiếm" placeholder="Tìm mã hồ sơ, khách hàng..." /></div><span className="mock-mode">{dataMode === 'api' ? 'DỮ LIỆU API' : 'LỖI API'}</span><div className="avatar">QA</div></header>
+      <header className="topbar"><button className="menu-button" onClick={() => setOpen(true)}><Menu /></button><div className="topbar-title">NexusOps <span>Điều phối tác nhân</span></div><div className="global-search"><Search size={16} /><input aria-label="Tìm kiếm" placeholder="Tìm mã hồ sơ, khách hàng..." /></div><span className="mock-mode">{dataMode === 'api' ? 'DỮ LIỆU API' : 'LỖI API'}</span><div className="profile-menu"><button className="avatar" onClick={() => setProfileOpen((value) => !value)} aria-label="Mở thông tin tài khoản">{user?.full_name.split(' ').slice(-2).map((part) => part[0]).join('').toUpperCase() ?? 'TK'}</button>{profileOpen && user && <div className="profile-popover"><div className="profile-popover-head"><UserCircle size={30} /><div><strong>{user.full_name}</strong><span>{user.role_name ?? user.role_id}</span></div></div><dl><div><dt>Tên đăng nhập</dt><dd>{user.username}</dd></div><div><dt>Email</dt><dd>{user.email}</dd></div><div><dt>Chức vụ</dt><dd>{user.role_name ?? user.role_id}</dd></div><div><dt>Hạn mức phê duyệt</dt><dd>{user.approval_limit === null || user.approval_limit === undefined ? 'Không giới hạn' : `${new Intl.NumberFormat('vi-VN').format(user.approval_limit)} ₫`}</dd></div></dl><button onClick={logout}><LogOut size={14} /> Đăng xuất</button></div>}</div></header>
       {children}
     </div>
   </div>
