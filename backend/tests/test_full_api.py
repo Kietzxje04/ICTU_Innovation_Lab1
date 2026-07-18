@@ -435,6 +435,8 @@ class FullApiTest(unittest.TestCase):
             seeded = list(session.scalars(select(CaseRecord).where(CaseRecord.case_id.like("TEST-MOCK-%"))))
             self.assertTrue(all(set(item.required_documents) == set(item.submitted_documents) for item in seeded))
             self.assertTrue(all(item.case_metadata.get("data_completeness") == "COMPLETE" for item in seeded))
+            self.assertEqual(8, sum(item.case_metadata.get("scenario") == "CLEAN_COMPLETE" for item in seeded))
+            self.assertEqual(2, sum(item.case_metadata.get("scenario") != "CLEAN_COMPLETE" for item in seeded))
             inserted_again, skipped_again = seed_mock_cases(session, 10, seed=42, prefix="TEST-MOCK")
             self.assertEqual((0, 10), (inserted_again, skipped_again))
 

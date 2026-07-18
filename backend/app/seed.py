@@ -4,10 +4,19 @@ import argparse
 import random
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from .models import CaseRecord
+from .models import (
+    AgentArtifactRecord,
+    AssessmentRunRecord,
+    CaseRecord,
+    CitationResultRecord,
+    LoanApprovalRecord,
+    MockExternalActionRecord,
+    ProposedActionRecord,
+    RunEventRecord,
+)
 from .auth import seed_roles_and_users
 
 
@@ -161,9 +170,9 @@ CANONICAL_OVERDRAFT_DOCUMENTS = [
 
 
 def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str, object]:
-    # Each pair contains both products for the same scenario. Every 24 records
-    # therefore covers all 12 scenarios for both supported products.
-    scenario = ((index - 1) // 2) % 12
+    # Exactly 80% of a standard cohort is clean/approvable input data. Every
+    # fifth record exercises one of the 11 controlled error scenarios.
+    scenario = 0 if index % 5 else 1 + (((index // 5) - 1) % 11)
     product = "CORPORATE_OVERDRAFT" if index % 2 else "WORKING_CAPITAL"
     product_code = "OD" if product == "CORPORATE_OVERDRAFT" else "WC"
     case_id = f"{prefix}-{product_code}-{index:06d}"
@@ -364,6 +373,19 @@ def seed_mock_cases(session: Session, count: int = 1000, *, seed: int = 20260718
     if count < 1:
         raise ValueError("count must be greater than zero")
     existing_ids = set(session.scalars(select(CaseRecord.case_id)))
+    if refresh:
+        cohort_ids = list(session.scalars(select(CaseRecord.case_id).where(CaseRecord.case_id.like(f"{prefix}-%"))))
+        if cohort_ids:
+            run_ids = list(session.scalars(select(AssessmentRunRecord.run_id).where(AssessmentRunRecord.case_id.in_(cohort_ids))))
+            session.execute(delete(ProposedActionRecord).where(ProposedActionRecord.case_id.in_(cohort_ids)))
+            session.execute(delete(LoanApprovalRecord).where(LoanApprovalRecord.case_id.in_(cohort_ids)))
+            session.execute(delete(MockExternalActionRecord).where(MockExternalActionRecord.case_id.in_(cohort_ids)))
+            if run_ids:
+                session.execute(delete(CitationResultRecord).where(CitationResultRecord.run_id.in_(run_ids)))
+                session.execute(delete(AgentArtifactRecord).where(AgentArtifactRecord.run_id.in_(run_ids)))
+                session.execute(delete(RunEventRecord).where(RunEventRecord.run_id.in_(run_ids)))
+                session.execute(delete(AssessmentRunRecord).where(AssessmentRunRecord.run_id.in_(run_ids)))
+            session.commit()
     rng = random.Random(seed)
     records = []
     skipped = 0
