@@ -21,7 +21,7 @@ from .readiness_service import ReadinessService
 from .dependencies import get_readiness_service
 from .auth import CurrentUser, create_session, current_user, verify_password
 from .approval_service import LoanApprovalService
-from .models import UserRecord
+from .models import RoleRecord, UserRecord
 
 
 router = APIRouter()
@@ -43,8 +43,9 @@ def login(request: Request, body: LoginRequest, session: Session = Depends(get_s
     user = session.scalar(select(UserRecord).where(UserRecord.username == body.username))
     if not user or not user.is_active or not verify_password(body.password, user.password_hash):
         raise DomainError(401, "INVALID_CREDENTIALS", "Tên đăng nhập hoặc mật khẩu không đúng")
+    role = session.get(RoleRecord, user.role_id)
     token, expires = create_session(session, user)
-    return response(request, {"access_token": token, "token_type": "bearer", "expires_at": expires.isoformat(), "user": {"user_id": user.user_id, "username": user.username, "full_name": user.full_name, "email": user.email, "role_id": user.role_id}})
+    return response(request, {"access_token": token, "token_type": "bearer", "expires_at": expires.isoformat(), "user": {"user_id": user.user_id, "username": user.username, "full_name": user.full_name, "email": user.email, "role_id": user.role_id, "role_name": role.name if role else user.role_id, "approval_limit": role.approval_limit if role else None, "permissions": role.permissions if role else []}})
 
 
 @router.get("/api/auth/me", response_model=ApiResponse)

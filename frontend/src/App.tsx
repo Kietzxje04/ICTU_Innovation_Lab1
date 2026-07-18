@@ -7,8 +7,13 @@ import { TracePage } from './pages/TracePage'
 import { CitationDetailPage, CitationLibraryPage } from './pages/CitationPages'
 import { ReportPage } from './pages/ReportPage'
 import { ReadinessProvider } from './readiness-context'
+import { AuthProvider, useAuth } from './auth-context'
+import { LoginPage } from './pages/LoginPage'
+import { Navigate } from 'react-router-dom'
 
-export default function App() {
+function ProtectedApp() {
+  const { isAuthenticated } = useAuth()
+  if (!isAuthenticated) return <Navigate to="/login" replace />
   return <ReadinessProvider><Layout><Routes>
     <Route path="/" element={<DashboardPage />} />
     <Route path="/cases/new" element={<NewCasePage />} />
@@ -21,3 +26,6 @@ export default function App() {
   </Routes></Layout></ReadinessProvider>
 }
 
+export default function App() {
+  return <AuthProvider><Routes><Route path="/login" element={<LoginPage />} /><Route path="*" element={<ProtectedApp />} /></Routes></AuthProvider>
+}
