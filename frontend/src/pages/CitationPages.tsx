@@ -50,11 +50,15 @@ function CaseContextContent({ context }: { context: CaseContext }) {
     { title: 'Rủi ro và tuân thủ', fields: ['cic_bad_debt', 'kyc_aml_flags'] },
     { title: 'Thông tin bổ sung', fields: ['metadata'] },
   ]
-  return <div className="case-context-readable">{groups.map((group) => <section key={group.title}><h3>{group.title}</h3><div className="citation-case-fields">{group.fields.map((field) => <div key={field}><span>{FIELD_LABELS[field] ?? field.replaceAll('_', ' ')}</span><strong>{formatCaseValue(field, getCaseField(context, field))}</strong></div>)}</div></section>)}</div>
+  return <div className="case-context-readable">{groups.map((group) => <section key={group.title}><h3>{group.title}</h3><div className="citation-case-fields">{group.fields.map((field) => { const value = getCaseField(context, field); const missing = isMissingCaseValue(value); return <div className={missing ? 'missing-value' : ''} key={field}><span>{FIELD_LABELS[field] ?? field.replaceAll('_', ' ')}</span><strong>{formatCaseValue(field, value)}</strong>{missing && <small>Thông tin chưa được cung cấp</small>}</div> })}</div></section>)}</div>
 }
 
 function getCaseField(context: CaseContext, field: string) {
   return context[field as keyof CaseContext]
+}
+
+function isMissingCaseValue(value: unknown) {
+  return value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
 }
 
 function issueTarget(evidence: EvidenceItem) {
