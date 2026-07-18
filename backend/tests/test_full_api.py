@@ -419,6 +419,12 @@ class FullApiTest(unittest.TestCase):
             self.assertEqual((10, 0), (inserted, skipped))
             mock = session.get(CaseRecord, "TEST-MOCK-OD-000001")
             self.assertIsNotNone(mock)
+            working_capital_clean = session.get(CaseRecord, "TEST-MOCK-WC-000002")
+            self.assertIsNotNone(working_capital_clean)
+            self.assertEqual("CLEAN_COMPLETE", mock.case_metadata["scenario"])
+            self.assertEqual("CLEAN_COMPLETE", working_capital_clean.case_metadata["scenario"])
+            self.assertEqual(set(mock.required_documents), set(mock.submitted_documents))
+            self.assertEqual(set(working_capital_clean.required_documents), set(working_capital_clean.submitted_documents))
             for field in (
                 "annual_revenue", "tax_declared_revenue", "current_assets", "current_liabilities",
                 "total_debt", "total_assets", "operating_cash_flow", "annual_debt_service",

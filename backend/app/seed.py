@@ -161,9 +161,9 @@ CANONICAL_OVERDRAFT_DOCUMENTS = [
 
 
 def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str, object]:
-    # Keep the large fixture set representative instead of relying on random
-    # chance for rare branches. Every 12 records covers one business scenario.
-    scenario = (index - 1) % 12
+    # Each pair contains both products for the same scenario. Every 24 records
+    # therefore covers all 12 scenarios for both supported products.
+    scenario = ((index - 1) // 2) % 12
     product = "CORPORATE_OVERDRAFT" if index % 2 else "WORKING_CAPITAL"
     product_code = "OD" if product == "CORPORATE_OVERDRAFT" else "WC"
     case_id = f"{prefix}-{product_code}-{index:06d}"
@@ -218,6 +218,17 @@ def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str
         submitted = list(required)
         cic_bad_debt, aml_flags, conduct_flags = False, [], []
         tax_declared_revenue = annual_revenue
+        profit_1 = round(annual_revenue * 0.06, 2)
+        profit_2 = round(annual_revenue * 0.08, 2)
+        total_debt = round(total_assets * 0.35, 2)
+        current_liabilities = round(current_assets / 1.65, 2)
+        operating_cash_flow = round(annual_revenue * 0.1, 2)
+        annual_debt_service = round(total_debt * 0.1, 2)
+        collateral_ratio = 0.65
+        if product == "CORPORATE_OVERDRAFT":
+            turnover = annual_revenue * 1.2
+            average_inflow = turnover / 12
+            stability = 0.9
     elif scenario == 1:  # missing mandatory documents
         submitted = list(required[: max(1, len(required) // 2)])
     elif scenario == 2:  # material tax mismatch
