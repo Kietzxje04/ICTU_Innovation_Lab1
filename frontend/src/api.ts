@@ -47,9 +47,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const caseApi = {
-  list: (signal?: AbortSignal) => request<Company[]>('/api/v1/cases', { signal }),
+  list: (signal?: AbortSignal) => request<Company[]>('/api/cases', { signal }),
   get: (caseId: string, signal?: AbortSignal) =>
-    request<Company>(`/api/v1/cases/${encodeURIComponent(caseId)}`, { signal }),
+    request<Company>(`/api/cases/${encodeURIComponent(caseId)}`, { signal }),
 }
 
 const demoApprovalHeaders = {
@@ -60,14 +60,14 @@ const demoApprovalHeaders = {
 
 export const resolutionApi = {
   get: (caseId: string, signal?: AbortSignal) =>
-    request<ResolutionPackage>(`/api/v1/cases/${encodeURIComponent(caseId)}/resolution-package`, { signal }),
+    request<ResolutionPackage>(`/api/cases/${encodeURIComponent(caseId)}/resolution-package`, { signal }),
 }
 
 export const actionApi = {
   list: (caseId: string, signal?: AbortSignal) =>
-    request<ProposedAction[]>(`/api/v1/cases/${encodeURIComponent(caseId)}/actions`, { signal }),
+    request<ProposedAction[]>(`/api/cases/${encodeURIComponent(caseId)}/actions`, { signal }),
   approve: (caseId: string, action: ProposedAction) =>
-    request<ProposedAction>(`/api/v1/cases/${encodeURIComponent(caseId)}/actions/${encodeURIComponent(action.id)}/approve`, {
+    request<ProposedAction>(`/api/cases/${encodeURIComponent(caseId)}/actions/${encodeURIComponent(action.id)}/approve`, {
       method: 'POST',
       headers: {
         ...demoApprovalHeaders,
@@ -76,7 +76,7 @@ export const actionApi = {
       body: JSON.stringify({ approved_payload_hash: action.payload_hash }),
     }),
   reject: (caseId: string, action: ProposedAction) =>
-    request<ProposedAction>(`/api/v1/cases/${encodeURIComponent(caseId)}/actions/${encodeURIComponent(action.id)}/reject`, {
+    request<ProposedAction>(`/api/cases/${encodeURIComponent(caseId)}/actions/${encodeURIComponent(action.id)}/reject`, {
       method: 'POST',
       headers: demoApprovalHeaders,
       body: JSON.stringify({ reason: 'Chuyển cấp để chuyên viên rà soát' }),
