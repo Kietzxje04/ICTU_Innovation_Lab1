@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from .case import CaseContext
 from .evidence import CitationClaim, ValidationResult
+from .hitl import CriticFinding
 
 
 class AgentArtifact(BaseModel):
@@ -25,6 +26,8 @@ class WorkflowState(BaseModel):
     route: list[str] = Field(default_factory=list)
     artifacts: dict[str, AgentArtifact] = Field(default_factory=dict)
     citation_results: dict[str, ValidationResult] = Field(default_factory=dict)
+    critic_findings: list[CriticFinding] = Field(default_factory=list)
+    rework_count: int = Field(default=0, ge=0, le=1)
     critic_verdict: Literal["PENDING", "PASS", "REVISE", "ESCALATE"] = "PENDING"
     final_status: Literal["IN_PROGRESS", "READY_FOR_HUMAN_REVIEW", "NEEDS_MORE_EVIDENCE", "BLOCKED"] = "IN_PROGRESS"
     trace: list[dict[str, Any]] = Field(default_factory=list)

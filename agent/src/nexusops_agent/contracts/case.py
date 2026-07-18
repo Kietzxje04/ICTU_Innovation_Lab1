@@ -19,6 +19,14 @@ class CaseContext(BaseModel):
     annual_revenue: float | None = Field(default=None, ge=0)
     pretax_profit_last_2_years: list[float] = Field(default_factory=list)
     tax_declared_revenue: float | None = Field(default=None, ge=0)
+    current_assets: float | None = Field(default=None, ge=0)
+    current_liabilities: float | None = Field(default=None, ge=0)
+    total_debt: float | None = Field(default=None, ge=0)
+    total_assets: float | None = Field(default=None, ge=0)
+    operating_cash_flow: float | None = None
+    annual_debt_service: float | None = Field(default=None, ge=0)
+    collateral_ratio: float | None = Field(default=None, ge=0)
+    twelve_month_account_turnover: float | None = Field(default=None, ge=0)
     cic_bad_debt: bool | None = None
     kyc_aml_flags: list[str] = Field(default_factory=list)
     metadata: dict[str, str] = Field(default_factory=dict)

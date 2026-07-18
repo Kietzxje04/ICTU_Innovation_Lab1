@@ -7,3 +7,5 @@ runtime/indexes/*
 !runtime/indexes/.gitkeep
 runtime/traces/*
 !runtime/traces/.gitkeep
+runtime/evaluations/*
+!runtime/evaluations/.gitkeep

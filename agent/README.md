@@ -42,8 +42,18 @@ agent/
 cd E:\Downloads\Ddc\agent
 python scripts\validate_rag_data.py
 python scripts\smoke_test.py
+python scripts\live_fpt_smoke_test.py
 python -m unittest discover -s tests -v
 ```
+
+## Tài liệu thiết kế
+
+- `docs/BA_AGENT_PHASE_PLAN.md`: BA scope, deliverables và exit gate theo phase.
+- `docs/MODEL_SELECTION_FPT_AI_FACTORY.md`: lựa chọn model theo từng Agent.
+- `docs/PHASE_1_REVIEW.md`: checkpoint Phase 1.
+- `configs/model_registry.json`: model IDs, fallback và parameter policy thực thi.
+
+FPT AI Factory dùng OpenAI-compatible base URL `https://mkp-api.fptcloud.com/v1`. Chỉ đặt key vào biến môi trường `FPT_AI_API_KEY`; không commit `.env`.
 
 ## Kết nối với Backend
 
