@@ -97,6 +97,20 @@ class RejectionRequest(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
 
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class TransferRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+    target_user_id: str | None = None
+
+
+class LoanApprovalRequest(BaseModel):
+    reason: str | None = Field(default=None, max_length=500)
+
+
 class ExecutionRecord(BaseModel):
     action_id: str
     external_ref: str | None

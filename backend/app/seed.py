@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .models import CaseRecord
+from .auth import seed_roles_and_users
 
 
 CASE_FIXTURES = [
@@ -139,6 +140,7 @@ def seed_cases(session: Session) -> None:
             if field != "case_id":
                 setattr(record, field, value)
     session.commit()
+    seed_roles_and_users(session)
 
 
 CANONICAL_WORKING_CAPITAL_DOCUMENTS = [

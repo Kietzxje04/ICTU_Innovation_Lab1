@@ -87,6 +87,24 @@ Nếu backend chạy trong Docker:
 docker compose exec backend python -m app.seed --count 1000
 ```
 
+## Tài khoản RBAC mẫu
+
+Lệnh seed cũng tạo 1 Giám đốc, 3 Quản lý và 5 Nhân viên. Mật khẩu dùng chung cho môi trường phát triển là `NexusOps@2026`.
+
+| Vai trò | Tài khoản |
+|---|---|
+| Giám đốc | `director-1` |
+| Quản lý | `manager-1`, `manager-2`, `manager-3` |
+| Nhân viên | `employee-1` đến `employee-5` |
+
+API luồng phê duyệt:
+
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `GET /api/cases/{case_id}/loan-approval`
+- `POST /api/cases/{case_id}/loan-approval/approve`
+- `POST /api/cases/{case_id}/loan-approval/transfer`
+
 ID được tạo theo dạng `MOCK-WC-000001` và `MOCK-OD-000001`. Có thể dùng prefix khác, ví dụ `--prefix DEMO`.
 
 API danh sách mặc định trả tối đa 100 hồ sơ để không kích hoạt workflow cho toàn bộ dữ liệu cùng lúc. Dùng `limit` và `offset` để phân trang, ví dụ `/api/readiness/cases?limit=100&offset=100`.
