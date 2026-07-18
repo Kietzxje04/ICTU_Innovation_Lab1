@@ -1,0 +1,17 @@
+{
+  "workflow_id": "corporate-overdraft-readiness",
+  "version": "1.0.0",
+  "product": "CORPORATE_OVERDRAFT",
+  "nodes": [
+    "EXISTING_CUSTOMER_GATE",
+    "PRODUCT_AGENT",
+    "DOCUMENT_COMPLETENESS",
+    "ACCOUNT_TURNOVER",
+    "CREDIT_AGENT",
+    "READINESS_RULE_ENGINE",
+    "MANDATORY_CRITIC",
+    "CITATION_VALIDATOR",
+    "POLICY_GATE"
+  ],
+  "max_rework": 1
+}

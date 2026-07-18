@@ -1,0 +1,19 @@
+{
+  "workflow_id": "working-capital-readiness",
+  "version": "1.0.0",
+  "product": "WORKING_CAPITAL",
+  "nodes": [
+    "EXISTING_CUSTOMER_GATE",
+    "PRODUCT_AGENT",
+    "DOCUMENT_COMPLETENESS",
+    "FINANCIAL_METRICS",
+    "TAX_CONSISTENCY",
+    "CREDIT_AGENT",
+    "COMPLIANCE_AGENT",
+    "READINESS_RULE_ENGINE",
+    "MANDATORY_CRITIC",
+    "CITATION_VALIDATOR",
+    "POLICY_GATE"
+  ],
+  "max_rework": 1
+}
