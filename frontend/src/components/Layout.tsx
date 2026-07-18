@@ -13,11 +13,13 @@ const navItems = [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
   const { dataMode } = useReadiness()
   const { user, logout } = useAuth()
   const handleLogout = async () => {
+    setProfileOpen(false)
     await logout()
     navigate('/login', { replace: true })
   }
@@ -29,7 +31,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     </aside>
     {open && <button className="nav-backdrop" onClick={() => setOpen(false)} />}
     <div className="app-main">
-      <header className="topbar"><button className="menu-button" onClick={() => setOpen(true)}><Menu /></button><div className="topbar-title">NexusOps <span>Điều phối tác nhân</span></div><div className="global-search"><Search size={16} /><input aria-label="Tìm kiếm" value={new URLSearchParams(location.search).get('q') ?? ''} onChange={(event) => navigate(`/?q=${encodeURIComponent(event.target.value)}`)} placeholder="Tìm mã hồ sơ, khách hàng..." /></div><span className="mock-mode">{dataMode === 'api' ? 'DỮ LIỆU API' : 'LỖI API'}</span><aside className="profile-menu"><div className="profile-card"><div className="profile-identity"><UserCircle size={38} /><div><strong>{user?.full_name}</strong><span>{user?.role_name ?? user?.role_id}</span></div></div><dl><div><dt>Tên đăng nhập</dt><dd>{user?.username}</dd></div><div><dt>Email</dt><dd>{user?.email}</dd></div><div><dt>Chức vụ</dt><dd>{user?.role_name ?? user?.role_id}</dd></div><div><dt>Hạn mức phê duyệt</dt><dd>{user?.approval_limit == null ? 'Không giới hạn' : `${new Intl.NumberFormat('vi-VN').format(user.approval_limit)} ₫`}</dd></div></dl><button onClick={handleLogout}><LogOut size={15} /> Đăng xuất</button></div></aside></header>
+      <header className="topbar"><button className="menu-button" onClick={() => setOpen(true)}><Menu /></button><div className="topbar-title">NexusOps <span>Điều phối tác nhân</span></div><div className="global-search"><Search size={16} /><input aria-label="Tìm kiếm" value={new URLSearchParams(location.search).get('q') ?? ''} onChange={(event) => navigate(`/?q=${encodeURIComponent(event.target.value)}`)} placeholder="Tìm mã hồ sơ, khách hàng..." /></div><span className="mock-mode">{dataMode === 'api' ? 'DỮ LIỆU API' : 'LỖI API'}</span><aside className="profile-menu"><button className="profile-avatar" aria-label="Mở thông tin tài khoản" onClick={() => setProfileOpen((value) => !value)}>{user?.full_name.split(' ').slice(-2).map((part) => part[0]).join('').toUpperCase() ?? 'TK'}<span className="profile-status" /></button>{profileOpen && <div className="profile-card"><div className="profile-identity"><UserCircle size={38} /><div><strong>{user?.full_name}</strong><span>{user?.role_name ?? user?.role_id}</span></div></div><dl><div><dt>Tên đăng nhập</dt><dd>{user?.username}</dd></div><div><dt>Email</dt><dd>{user?.email}</dd></div><div><dt>Chức vụ</dt><dd>{user?.role_name ?? user?.role_id}</dd></div><div><dt>Hạn mức phê duyệt</dt><dd>{user?.approval_limit == null ? 'Không giới hạn' : `${new Intl.NumberFormat('vi-VN').format(user.approval_limit)} ₫`}</dd></div></dl><button onClick={handleLogout}><LogOut size={15} /> Đăng xuất</button></div>}</aside></header>
       {children}
     </div>
   </div>

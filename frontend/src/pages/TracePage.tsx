@@ -8,7 +8,7 @@ import { FinalStatusPill } from '../components/Status'
 export function TracePage() {
   const { cases } = useReadiness()
   const [page, setPage] = useState(1)
-  const pageSize = 5
+  const pageSize = 10
   const pageCount = Math.max(1, Math.ceil(cases.length / pageSize))
   useEffect(() => { if (page > pageCount) setPage(pageCount) }, [page, pageCount])
   const visibleCases = cases.slice((page - 1) * pageSize, page * pageSize)
