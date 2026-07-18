@@ -6,7 +6,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from fastapi import Cookie, Depends, Header
+from fastapi import Cookie, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -44,11 +44,10 @@ class CurrentUser:
 
 
 def current_user(
-    authorization: str | None = Header(default=None),
     nexusops_session: str | None = Cookie(default=None),
     session: Session = Depends(get_session),
 ) -> CurrentUser:
-    token = nexusops_session or (authorization[7:] if authorization and authorization.startswith("Bearer ") else None)
+    token = nexusops_session
     if not token:
         raise DomainError(401, "AUTHENTICATION_REQUIRED", "Vui lòng đăng nhập để tiếp tục")
     token_hash = hashlib.sha256(token.encode()).hexdigest()

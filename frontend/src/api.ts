@@ -9,13 +9,11 @@ interface ApiResponse<T> {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = window.sessionStorage.getItem('nexusops-access-token')
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     credentials: 'include',
     headers: {
       Accept: 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   })
@@ -65,7 +63,7 @@ interface StepwiseRunResponse {
 }
 
 export const readinessApi = {
-  login: async (username: string, password: string) => request<{ access_token?: string; token_type?: string; expires_at?: string; user: AuthUser }>('/api/auth/login', {
+  login: async (username: string, password: string) => request<{ expires_at: string; user: AuthUser }>('/api/auth/login', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }),
   }),
   me: () => request<AuthUser>('/api/auth/me'),

@@ -23,6 +23,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.sessionStorage.removeItem(USER_KEY)
   }
   useEffect(() => {
+    // Xóa thông tin xác thực kiểu cũ: phiên hợp lệ chỉ được xác định bởi
+    // cookie HttpOnly và bản ghi auth_sessions ở phía máy chủ.
+    window.sessionStorage.removeItem('nexusops-access-token')
     setIsCheckingSession(true)
     readinessApi.me()
       .then((currentUser) => {

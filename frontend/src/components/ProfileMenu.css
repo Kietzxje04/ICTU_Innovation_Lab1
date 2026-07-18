@@ -1,5 +1,8 @@
 .profile-menu {
   position: relative;
+  margin-left: 0;
+  flex: 0 0 auto;
+  align-self: center;
 }
 
 .profile-menu > .avatar {

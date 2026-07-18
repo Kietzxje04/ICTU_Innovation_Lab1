@@ -46,7 +46,7 @@ def login(request: Request, response_obj: Response, body: LoginRequest, session:
     role = session.get(RoleRecord, user.role_id)
     token, expires = create_session(session, user)
     response_obj.set_cookie("nexusops_session", token, httponly=True, secure=request.url.scheme == "https", samesite="lax", expires=expires, path="/")
-    return response(request, {"access_token": token, "token_type": "bearer", "expires_at": expires.isoformat(), "user": {"user_id": user.user_id, "username": user.username, "full_name": user.full_name, "email": user.email, "role_id": user.role_id, "role_name": role.name if role else user.role_id, "approval_limit": role.approval_limit if role else None, "permissions": role.permissions if role else []}})
+    return response(request, {"expires_at": expires.isoformat(), "user": {"user_id": user.user_id, "username": user.username, "full_name": user.full_name, "email": user.email, "role_id": user.role_id, "role_name": role.name if role else user.role_id, "approval_limit": role.approval_limit if role else None, "permissions": role.permissions if role else []}})
 
 
 @router.get("/api/auth/me", response_model=ApiResponse)
