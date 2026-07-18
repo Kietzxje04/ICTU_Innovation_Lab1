@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   AlertTriangle, ArrowLeft, Bell, BookOpen, Bot, Check, ChevronRight, CircleHelp, Clock3,
@@ -6,7 +6,9 @@ import {
   Menu, MessageSquareText, MoreHorizontal, PanelLeftClose, Search, Send, Settings, ShieldCheck,
   Sparkles, ThumbsDown, ThumbsUp, UserRound, X, Zap,
 } from 'lucide-react'
-import { companies, getCompany, type AgentState, type Company } from './data'
+import { CasesProvider, useCases } from './cases-context'
+import { actionApi, resolutionApi, type ProposedAction, type ResolutionPackage } from './api'
+import type { AgentState, Company } from './data'
 
 const navItems = [
   { to: '/', label: 'Trang chủ', icon: Home },
@@ -72,6 +74,7 @@ function StatusBadge({ status }: { status: Company['status'] }) {
 
 function HomePage() {
   const navigate = useNavigate()
+  const { companies, isLoading, isUsingFallback, refresh } = useCases()
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('Tất cả')
   const filtered = companies.filter((c) => {
@@ -113,7 +116,11 @@ function HomePage() {
           </table>
         </div>
         {filtered.length === 0 && <div className="empty-state">Không tìm thấy hồ sơ phù hợp.</div>}
-        <div className="table-footer">Hiển thị {filtered.length} trên tổng số {companies.length} hồ sơ mẫu <span>Dữ liệu demo</span></div>
+        <div className="table-footer">
+          Hiển thị {filtered.length} trên tổng số {companies.length} hồ sơ mẫu
+          <span>{isLoading ? 'Đang kết nối backend...' : isUsingFallback ? 'Dữ liệu fallback · thử lại' : 'Đã kết nối backend'}</span>
+          {isUsingFallback && <button className="text-button" onClick={refresh}>Kết nối lại</button>}
+        </div>
       </article>
       <aside className="side-stack">
         <article className="card chart-card">
@@ -137,6 +144,7 @@ const stateLabels: Record<AgentState, string> = { done: 'Hoàn thành', running:
 
 function CompanySwitcher({ current }: { current: Company }) {
   const navigate = useNavigate()
+  const { companies } = useCases()
   return <select className="company-switcher" value={current.id} onChange={(e) => navigate(`/profiles/${e.target.value}`)} aria-label="Chọn công ty">
     {companies.map((company) => <option key={company.id} value={company.id}>{company.shortName} · {company.code}</option>)}
   </select>
@@ -144,14 +152,55 @@ function CompanySwitcher({ current }: { current: Company }) {
 
 function ProfilePage() {
   const { companyId } = useParams()
-  const company = getCompany(companyId)
+  const { companies } = useCases()
+  const company = companies.find((item) => item.id === companyId) ?? companies[0]
   const navigate = useNavigate()
   const [chatOpen, setChatOpen] = useState(false)
   const [message, setMessage] = useState('')
   const [messages, setMessages] = useState<string[]>([])
   const [decision, setDecision] = useState<'idle' | 'approved' | 'escalated'>('idle')
+  const [resolution, setResolution] = useState<ResolutionPackage | null>(null)
+  const [action, setAction] = useState<ProposedAction | null>(null)
+  const [actionPending, setActionPending] = useState(false)
+  const [actionError, setActionError] = useState('')
   const progress = Math.round(company.agents.reduce((sum, agent) => sum + agent.confidence, 0) / company.agents.length)
   const riskClass = company.risk === 'Cao' ? 'danger' : company.risk === 'Thấp' ? 'success' : 'warning'
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setDecision('idle')
+    setActionError('')
+    resolutionApi.get(company.id, controller.signal)
+      .then((payload) => {
+        setResolution(payload)
+        setAction(payload.proposed_action)
+        if (payload.proposed_action.status === 'SUCCEEDED' || payload.proposed_action.status === 'APPROVED') setDecision('approved')
+        if (payload.proposed_action.status === 'REJECTED') setDecision('escalated')
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        setResolution(null)
+        setAction(null)
+      })
+    return () => controller.abort()
+  }, [company.id])
+
+  const decideAction = async (nextDecision: 'approved' | 'escalated') => {
+    if (!action || actionPending) return
+    setActionPending(true)
+    setActionError('')
+    try {
+      const updated = nextDecision === 'approved'
+        ? await actionApi.approve(company.id, action)
+        : await actionApi.reject(company.id, action)
+      setAction(updated)
+      setDecision(nextDecision)
+    } catch {
+      setActionError('Không thể cập nhật hành động. Vui lòng kiểm tra backend và thử lại.')
+    } finally {
+      setActionPending(false)
+    }
+  }
 
   const sendMessage = () => {
     if (!message.trim()) return
@@ -203,13 +252,17 @@ function ProfilePage() {
         <label>Sổ tay nguồn</label><button className="document-button"><FileText size={15} />SME_Policy_Manual_v2.1 <ExternalLink size={13} /></button>
         <label>Ngày hiệu lực</label><strong className="effective-date">2023-10-15</strong>
         <button className="outline-button"><ExternalLink size={14} />Xem toàn bộ tài liệu chính sách</button>
-        <div className="case-summary"><span>Kết quả AI</span><strong>{company.issue}</strong><small>Đề xuất: {company.recommendation}</small></div>
+        <div className="case-summary"><span>Kết quả AI</span><strong>{company.issue}</strong><small>Outcome: {resolution?.primary_outcome ?? 'Đang tải...'}</small></div>
       </aside>
     </div>
     <footer className="decision-bar">
       <div><span>Kết quả cuối cùng</span><strong>{decision === 'idle' ? 'YÊU CẦU HÀNH ĐỘNG' : decision === 'approved' ? 'ĐÃ PHÊ DUYỆT' : 'ĐÃ CHUYỂN CẤP'}</strong></div>
-      <div className="suggestion"><span>Hành động đề xuất</span><strong><Zap size={13} />{company.recommendation}</strong></div>
-      <div className="decision-actions"><button onClick={() => setDecision('escalated')} className="outline-button">Từ chối / Chuyển cấp</button><button onClick={() => setDecision('approved')} className="primary-button"><Check size={15} />Phê duyệt hành động</button></div>
+      <div className="suggestion"><span>Hành động đề xuất</span><strong><Zap size={13} />{action?.type ?? company.recommendation}</strong>{action && <small title={action.payload_hash}>Payload: {action.payload_hash.slice(0, 10)}…</small>}</div>
+      <div className="decision-actions">
+        {actionError && <span className="action-error">{actionError}</span>}
+        <button disabled={!action || actionPending || decision !== 'idle'} onClick={() => decideAction('escalated')} className="outline-button">Từ chối / Chuyển cấp</button>
+        <button disabled={!action || actionPending || decision !== 'idle'} onClick={() => decideAction('approved')} className="primary-button"><Check size={15} />{actionPending ? 'Đang xử lý...' : 'Phê duyệt hành động'}</button>
+      </div>
     </footer>
     <button className="chat-fab" onClick={() => setChatOpen(true)} aria-label="Mở hỗ trợ RAG AI"><MessageSquareText size={20} /></button>
     {chatOpen && <div className="chat-panel">
@@ -223,7 +276,8 @@ function ProfilePage() {
 }
 
 function AuditPage() {
-  const stats = useMemo(() => companies.map((c) => ({ ...c, compliance: Math.min(99, c.score + 5) })), [])
+  const { companies } = useCases()
+  const stats = useMemo(() => companies.map((c) => ({ ...c, compliance: Math.min(99, c.score + 5) })), [companies])
   return <main className="page simple-page"><div className="page-heading"><div><p className="eyebrow">KIỂM TOÁN HỆ THỐNG</p><h1>Lịch sử quyết định</h1><p>Truy vết đầy đủ các kết luận do AI Agent và cán bộ tín dụng thực hiện.</p></div></div>
     <section className="card audit-list"><div className="card-header"><div><h2>Nhật ký theo hồ sơ</h2><p>Dữ liệu minh họa được đồng bộ với trang chủ</p></div></div>
       {stats.map((company) => <Link to={`/profiles/${company.id}`} key={company.id} className="audit-row"><div className="audit-icon"><History size={17} /></div><div><strong>{company.code} · {company.shortName}</strong><span>{company.submitted} · {company.agent}</span></div><div><span>Tuân thủ</span><strong>{company.compliance}%</strong></div><StatusBadge status={company.status} /><ChevronRight size={17} /></Link>)}
@@ -236,5 +290,5 @@ function NotFound() {
 }
 
 export default function App() {
-  return <AppShell><Routes><Route path="/" element={<HomePage />} /><Route path="/profiles/:companyId" element={<ProfilePage />} /><Route path="/audit" element={<AuditPage />} /><Route path="*" element={<NotFound />} /></Routes></AppShell>
+  return <CasesProvider><AppShell><Routes><Route path="/" element={<HomePage />} /><Route path="/profiles/:companyId" element={<ProfilePage />} /><Route path="/audit" element={<AuditPage />} /><Route path="*" element={<NotFound />} /></Routes></AppShell></CasesProvider>
 }

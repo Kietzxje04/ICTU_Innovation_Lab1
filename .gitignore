@@ -22,6 +22,10 @@ coverage/
 .vite/
 .cache/
 *.tsbuildinfo
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
 
 # Editors and operating systems
 .idea/
