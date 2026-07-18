@@ -1,9 +1,10 @@
-import { AlertTriangle, ArrowLeft, BookOpen, Check, ChevronRight, CircleAlert, Clock3, FileText, Flag, Gauge, ListTree, Route, ShieldCheck, UserRound } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, BookOpen, Check, ChevronRight, CircleAlert, Clock3, FileText, Flag, Gauge, ListTree, ShieldCheck, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { NODE_LABELS } from '../domain'
 import { useReadiness } from '../readiness-context'
 import { ArtifactPill, FinalStatusPill, ProductPill } from '../components/Status'
+import { WorkflowCanvas } from '../components/WorkflowCanvas'
 
 const money = (value: number | null) => value === null ? 'Chưa cung cấp' : `${new Intl.NumberFormat('vi-VN').format(value)} ₫`
 
@@ -24,7 +25,7 @@ export function CaseDetailPage() {
     <section className="case-hero"><div><ProductPill product={context.product} /><h1>{item.company_name}</h1><p><UserRound size={13} /> {item.owner} · {context.metadata.branch}</p></div><div className="hero-amount"><span>Giá trị đề nghị</span><strong>{money(context.requested_amount)}</strong><small>{context.metadata.industry}</small></div><div className="hero-sla"><Clock3 size={15} /><span>SLA</span><strong>{item.sla_due}</strong></div></section>
     <section className="safety-banner"><ShieldCheck size={18} /><div><strong>Readiness only</strong><span>AI tạo artifact và đề xuất HITL; không phê duyệt hoặc từ chối khoản vay.</span></div><span>Critic: <b>{workflow.critic_verdict}</b></span></section>
     <div className="workbench-grid"><div className="workbench-main">
-      <section className="work-card workflow-card"><div className="section-title"><div><Route size={17} /><h2>Hybrid-agent workflow</h2></div><span>{workflow.route.length} nodes · max rework 1</span></div><div className="workflow-track">{workflow.route.map((node, index) => { const artifact = workflow.artifacts[node]; return <div className={`workflow-node ${artifact?.status.toLowerCase() ?? ''}`} key={node}><span>{artifact?.status === 'PASS' ? <Check size={13} /> : index + 1}</span><div><strong>{NODE_LABELS[node] ?? node}</strong><small>{artifact?.engine ?? 'SYSTEM'}</small></div>{artifact && <ArtifactPill status={artifact.status} />}</div> })}</div></section>
+      <WorkflowCanvas context={context} workflow={workflow} />
       <section className="work-card"><div className="section-title"><div><Gauge size={17} /><h2>Input readiness</h2></div><span>CaseContext</span></div><div className="input-metrics"><article><span>Khách hàng hiện hữu</span><strong>{context.existing_customer ? 'Có' : 'Không'}</strong></article><article><span>Quan hệ</span><strong>{context.relationship_months} tháng</strong></article><article><span>Doanh thu năm</span><strong>{money(context.annual_revenue)}</strong></article><article><span>Doanh thu khai thuế</span><strong>{money(context.tax_declared_revenue)}</strong></article><article><span>Chênh lệch thuế</span><strong className={taxGap && taxGap > .1 ? 'text-warning' : ''}>{taxGap === null ? 'N/A' : `${(taxGap * 100).toFixed(1)}%`}</strong></article><article><span>CIC</span><strong className={context.cic_bad_debt ? 'text-danger' : ''}>{context.cic_bad_debt ? 'Có nợ xấu' : 'Không có cờ xấu'}</strong></article></div><div className="profit-block"><span>Lợi nhuận trước thuế 2 năm</span>{context.pretax_profit_last_2_years.map((value, index) => <div key={index}><small>Năm {index + 1}</small><strong>{money(value)}</strong><i style={{ width: `${Math.min(100, Math.abs(value) / Math.max(...context.pretax_profit_last_2_years.map(Math.abs), 1) * 100)}%` }} /></div>)}</div></section>
       <section className="work-card"><div className="section-title"><div><ListTree size={17} /><h2>Agent artifacts</h2></div><span>{artifacts.length} artifacts</span></div><div className="artifact-list">{artifacts.map((artifact) => <article key={artifact.agent_id}><div className="artifact-head"><div><strong>{NODE_LABELS[artifact.agent_id] ?? artifact.agent_id}</strong><span>{artifact.engine}</span></div><ArtifactPill status={artifact.status} /></div><p>{artifact.summary}</p>{Object.keys(artifact.metrics).length > 0 && <div className="artifact-metrics">{Object.entries(artifact.metrics).map(([key, value]) => <span key={key}>{key.replaceAll('_', ' ')}: <b>{value < 1 ? `${(value * 100).toFixed(1)}%` : new Intl.NumberFormat('vi-VN').format(value)}</b></span>)}</div>}{artifact.warnings.length > 0 && <div className="artifact-warnings">{artifact.warnings.map((warning) => <span key={warning}><AlertTriangle size={12} />{warning}</span>)}</div>}</article>)}</div></section>
       <section className="work-card trace-summary"><div className="section-title"><div><ListTree size={17} /><h2>Execution trace</h2></div><Link to="/trace">Xem toàn bộ <ChevronRight size={14} /></Link></div>{workflow.trace.slice(-5).map((event) => <div className="trace-line" key={event.node}><i /><div><strong>{NODE_LABELS[event.node] ?? event.node}</strong><span>{event.message}</span></div><time>{event.duration_ms} ms</time></div>)}</section>
@@ -35,4 +36,3 @@ export function CaseDetailPage() {
     </aside></div>
   </main>
 }
-
