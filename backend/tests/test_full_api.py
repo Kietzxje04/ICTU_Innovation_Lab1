@@ -13,6 +13,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, engine as runtime_engine, get_session
 from app.main import app
+from app.models import CaseRecord
 from app.seed import seed_cases, seed_mock_cases
 
 
@@ -416,6 +417,15 @@ class FullApiTest(unittest.TestCase):
         with self.SessionLocal() as session:
             inserted, skipped = seed_mock_cases(session, 10, seed=42, prefix="TEST-MOCK")
             self.assertEqual((10, 0), (inserted, skipped))
+            mock = session.get(CaseRecord, "TEST-MOCK-OD-000001")
+            self.assertIsNotNone(mock)
+            for field in (
+                "annual_revenue", "tax_declared_revenue", "current_assets", "current_liabilities",
+                "total_debt", "total_assets", "operating_cash_flow", "annual_debt_service",
+            ):
+                self.assertIsNotNone(getattr(mock, field), field)
+            for field in ("industry", "province", "branch", "legal_type", "tax_code", "contact_name", "contact_phone"):
+                self.assertTrue(mock.case_metadata.get(field), field)
             inserted_again, skipped_again = seed_mock_cases(session, 10, seed=42, prefix="TEST-MOCK")
             self.assertEqual((0, 10), (inserted_again, skipped_again))
 

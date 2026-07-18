@@ -129,8 +129,8 @@ export function NewCasePage() {
   }
 
   return <main className="page intake-page">
-    <Link className="back-link" to="/"><ArrowLeft size={15} /> Quay lại dashboard</Link>
-    <div className="page-heading"><div><p className="eyebrow">CASE INTAKE</p><h1>Tạo hồ sơ readiness</h1><p>Agent cung cấp ma trận hồ sơ, workflow và các tiêu chí readiness; kết quả không phải phê duyệt tín dụng.</p></div></div>
+    <Link className="back-link" to="/"><ArrowLeft size={15} /> Quay lại bảng điều hành</Link>
+    <div className="page-heading"><div><p className="eyebrow">TIẾP NHẬN HỒ SƠ</p><h1>Tạo hồ sơ đánh giá mức độ sẵn sàng</h1><p>Hệ thống cung cấp ma trận hồ sơ, quy trình và tiêu chí đánh giá; kết quả không phải quyết định phê duyệt tín dụng.</p></div></div>
     <form onSubmit={submit} className="intake-layout">
       <div className="intake-main">
         <section className="form-section"><div className="form-section-title"><span>01</span><div><h2>Định danh hồ sơ</h2><p>Thông tin quản lý và quan hệ khách hàng</p></div></div><div className="form-grid">
@@ -164,25 +164,25 @@ export function NewCasePage() {
           <label>Độ ổn định dòng tiền (0-1)<input name="turnover_stability_ratio" type="number" min="0" step="0.01" defaultValue="0.8" required /></label>
           <label>Tỷ lệ sử dụng dự kiến (0-1)<input name="expected_utilization_ratio" type="number" min="0" max="1" step="0.01" defaultValue="0.7" /></label>
           <label>Số ngày dư nợ âm dự kiến<input name="negative_balance_days" type="number" min="0" defaultValue="20" /></label>
-          <label>Số ngày hoàn trả/cleanup<input name="cleanup_days" type="number" min="0" defaultValue="7" /></label>
+          <label>Số ngày hoàn trả dư nợ<input name="cleanup_days" type="number" min="0" defaultValue="7" /></label>
           <label className="span-2">Cờ hành vi tài khoản (phân cách dấu phẩy)<input name="account_conduct_flags" placeholder="Ví dụ: RETURNED_PAYMENT, IRREGULAR_CLEANUP" /></label>
         </div></section> : <section className="form-section"><div className="form-section-title"><span>03</span><div><h2>Dữ liệu vốn lưu động</h2><p>Mục đích sử dụng vốn và thông tin bảo đảm</p></div></div><div className="form-grid">
           <label className="span-2">Mục đích vay<input name="loan_purpose" defaultValue="Bổ sung vốn lưu động phục vụ hoạt động kinh doanh" required /></label>
           <label>Tỷ lệ tài sản bảo đảm (0-1)<input name="collateral_ratio" type="number" min="0" step="0.01" defaultValue="0.3" required /></label>
         </div></section>}
 
-        <section className="form-section"><div className="form-section-title"><span>04</span><div><h2>Tài liệu và AML</h2><p>Ma trận hồ sơ được tải từ Agent; mặc định chưa đánh dấu tài liệu đã nộp</p></div></div>
+        <section className="form-section"><div className="form-section-title"><span>04</span><div><h2>Tài liệu và phòng chống rửa tiền</h2><p>Ma trận hồ sơ được tải từ hệ thống; mặc định chưa đánh dấu tài liệu đã nộp</p></div></div>
           <div className="document-checklist">{required.map((document) => <label key={document}><input type="checkbox" checked={submitted.includes(document)} onChange={() => toggleDocument(document)} /><span><Check size={13} /></span><strong>{document.replaceAll('_', ' ')}</strong></label>)}</div>
-          {!required.length && <p>Đang tải ma trận hồ sơ từ Agent...</p>}
-          <label className="wide-field">KYC/AML flags (phân cách bằng dấu phẩy)<input value={amlFlags} onChange={(event) => setAmlFlags(event.target.value)} placeholder="Ví dụ: BENEFICIAL_OWNER_REVIEW" /></label>
+          {!required.length && <p>Đang tải ma trận hồ sơ từ hệ thống...</p>}
+          <label className="wide-field">Cảnh báo định danh/phòng chống rửa tiền (phân cách bằng dấu phẩy)<input value={amlFlags} onChange={(event) => setAmlFlags(event.target.value)} placeholder="Ví dụ: cần xác minh chủ sở hữu hưởng lợi" /></label>
         </section>
       </div>
 
-      <aside className="route-preview"><div className="route-preview-title"><RouteIcon size={18} /><div><strong>Agent workflow preview</strong><span>{route.length} nodes · max rework 1</span></div></div>
-        <div className="preview-nodes">{route.map((node, index) => <div key={node}><i>{index + 1}</i><span>{NODE_LABELS[node] ?? node}</span>{['MANDATORY_CRITIC', 'CITATION_VALIDATOR', 'READINESS_RULE_ENGINE', 'POLICY_GATE'].includes(node) && <b>Mandatory</b>}</div>)}</div>
+      <aside className="route-preview"><div className="route-preview-title"><RouteIcon size={18} /><div><strong>Xem trước quy trình xử lý</strong><span>{route.length} khâu · làm lại tối đa 1 lần</span></div></div>
+        <div className="preview-nodes">{route.map((node, index) => <div key={node}><i>{index + 1}</i><span>{NODE_LABELS[node] ?? node}</span>{['MANDATORY_CRITIC', 'CITATION_VALIDATOR', 'READINESS_RULE_ENGINE', 'POLICY_GATE'].includes(node) && <b>Bắt buộc</b>}</div>)}</div>
         {routeReasons.length > 0 && <div className="route-warning"><ShieldAlert size={15} /><span>{routeReasons.join(' · ')}</span></div>}
         {(schemaError || submitError) && <div className="route-warning"><ShieldAlert size={15} /><span>{schemaError || submitError}</span></div>}
-        <button disabled={submitting || !required.length} className="primary-button submit-case" type="submit">{submitting ? 'Đang chạy Agent workflow...' : 'Tạo và chạy Agent workflow'} <ArrowRight size={15} /></button>
+        <button disabled={submitting || !required.length} className="primary-button submit-case" type="submit">{submitting ? 'Đang chạy quy trình tác nhân...' : 'Tạo và chạy quy trình tác nhân'} <ArrowRight size={15} /></button>
         <p className="boundary-note">Các ngưỡng hiện tại là chính sách demo tổng hợp, không phải chính sách chính thức và không tạo hạn mức/lãi suất/phê duyệt tự động.</p>
       </aside>
     </form>

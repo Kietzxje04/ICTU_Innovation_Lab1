@@ -68,6 +68,52 @@ class CaseRecord(Base):
     runs: Mapped[list["AssessmentRunRecord"]] = relationship(back_populates="case")
 
 
+class RoleRecord(Base):
+    __tablename__ = "roles"
+
+    role_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    name: Mapped[str] = mapped_column(String(80), unique=True)
+    approval_limit: Mapped[float | None] = mapped_column(Float, nullable=True)
+    permissions: Mapped[list[str]] = mapped_column(JSON, default=list)
+
+
+class UserRecord(Base):
+    __tablename__ = "users"
+
+    user_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    username: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    email: Mapped[str] = mapped_column(String(255), unique=True)
+    full_name: Mapped[str] = mapped_column(String(160))
+    role_id: Mapped[str] = mapped_column(ForeignKey("roles.role_id"), index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class AuthSessionRecord(Base):
+    __tablename__ = "auth_sessions"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.user_id"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class LoanApprovalRecord(Base):
+    __tablename__ = "loan_approvals"
+
+    approval_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    case_id: Mapped[str] = mapped_column(ForeignKey("cases.case_id"), unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(40), default="PENDING", index=True)
+    current_role: Mapped[str] = mapped_column(String(40), default="EMPLOYEE")
+    assigned_to: Mapped[str | None] = mapped_column(ForeignKey("users.user_id"), nullable=True)
+    approved_by: Mapped[str | None] = mapped_column(ForeignKey("users.user_id"), nullable=True)
+    decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    history: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+
 class AssessmentRunRecord(Base):
     __tablename__ = "assessment_runs"
     __table_args__ = (UniqueConstraint("case_id", "idempotency_key", name="uq_run_case_idempotency"),)

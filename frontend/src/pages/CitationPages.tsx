@@ -17,6 +17,14 @@ const FIELD_LABELS: Record<string, string> = {
   kyc_aml_flags: 'Cảnh báo KYC/AML', customer_id: 'Mã khách hàng', metadata: 'Thông tin bổ sung',
 }
 
+const DOMAIN_LABELS: Record<EvidenceItem['domain'], string> = {
+  CASE_DATA: 'Dữ liệu hồ sơ', AML: 'Phòng chống rửa tiền', LENDING: 'Tín dụng', DEMO_POLICY: 'Chính sách mô phỏng', QUARANTINE: 'Nguồn chờ xác minh',
+}
+
+const VALIDATION_LABELS: Record<string, string> = {
+  VALID: 'Hợp lệ', WARNING_DEMO_ONLY: 'Chỉ dùng mô phỏng', REVIEW_REQUIRED: 'Cần rà soát', STALE_OR_UNVERIFIED: 'Chưa xác minh hiệu lực', INVALID_QUOTE: 'Trích dẫn không hợp lệ', INVALID_HASH: 'Mã toàn vẹn không hợp lệ', INVALID_AUTHORITY: 'Nguồn không đúng thẩm quyền', ABSTAIN_NO_EVIDENCE: 'Chưa có bằng chứng',
+}
+
 const VALUE_LABELS: Record<string, string> = {
   WORKING_CAPITAL: 'Vốn lưu động', CORPORATE_OVERDRAFT: 'Thấu chi doanh nghiệp',
   BUSINESS_REGISTRATION: 'Đăng ký kinh doanh', FINANCIAL_STATEMENTS_2Y: 'Báo cáo tài chính 2 năm', TAX_RETURNS_2Y: 'Tờ khai thuế 2 năm', CIC_REPORT: 'Báo cáo CIC',
@@ -50,11 +58,15 @@ function CaseContextContent({ context }: { context: CaseContext }) {
     { title: 'Rủi ro và tuân thủ', fields: ['cic_bad_debt', 'kyc_aml_flags'] },
     { title: 'Thông tin bổ sung', fields: ['metadata'] },
   ]
-  return <div className="case-context-readable">{groups.map((group) => <section key={group.title}><h3>{group.title}</h3><div className="citation-case-fields">{group.fields.map((field) => <div key={field}><span>{FIELD_LABELS[field] ?? field.replaceAll('_', ' ')}</span><strong>{formatCaseValue(field, getCaseField(context, field))}</strong></div>)}</div></section>)}</div>
+  return <div className="case-context-readable">{groups.map((group) => <section key={group.title}><h3>{group.title}</h3><div className="citation-case-fields">{group.fields.map((field) => { const value = getCaseField(context, field); const missing = isMissingCaseValue(value); return <div className={missing ? 'missing-value' : ''} key={field}><span>{FIELD_LABELS[field] ?? field.replaceAll('_', ' ')}</span><strong>{formatCaseValue(field, value)}</strong>{missing && <small>Thông tin chưa được cung cấp</small>}</div> })}</div></section>)}</div>
 }
 
 function getCaseField(context: CaseContext, field: string) {
   return context[field as keyof CaseContext]
+}
+
+function isMissingCaseValue(value: unknown) {
+  return value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
 }
 
 function issueTarget(evidence: EvidenceItem) {
@@ -66,7 +78,7 @@ function issueTarget(evidence: EvidenceItem) {
 }
 
 function CitationCard({ item, caseId }: { item: EvidenceItem; caseId: string }) {
-  return <Link className="citation-library-card" to={`/citations/${caseId}/${encodeURIComponent(item.chunk_id)}`}><div className="citation-card-head"><span className={`citation-domain ${item.domain.toLowerCase()}`}>{item.domain.replaceAll('_', ' ')}</span><span>{item.validation}</span></div><h2>{item.document_title}</h2><p>“{item.citation_text}”</p><div><span>{item.document_number}</span><span>{item.source_authority}</span><ArrowRight size={15} /></div></Link>
+  return <Link className="citation-library-card" to={`/citations/${caseId}/${encodeURIComponent(item.chunk_id)}`}><div className="citation-card-head"><span className={`citation-domain ${item.domain.toLowerCase()}`}>{DOMAIN_LABELS[item.domain]}</span><span>{VALIDATION_LABELS[item.validation] ?? item.validation}</span></div><h2>{item.document_title}</h2><p>“{item.citation_text}”</p><div><span>{item.document_number}</span><span>{item.source_authority}</span><ArrowRight size={15} /></div></Link>
 }
 
 export function CitationLibraryPage() {
@@ -91,7 +103,7 @@ export function CitationDetailPage() {
   const returnTarget = (location.state as { issueTarget?: string } | null)?.issueTarget ?? issueTarget(evidence)
   return <main className="citation-detail-page">
     <div className="citation-breadcrumb"><Link to={`/cases/${readinessCase.id}`}><ArrowLeft size={14} /> Hồ sơ</Link><span>/</span><Link to={`/citations/${readinessCase.id}`}>Thư viện trích dẫn</Link><span>/</span><strong>{evidence.document_number}</strong></div>
-    <header className="citation-detail-hero"><div><div className="citation-title-meta"><span className={`citation-domain ${evidence.domain.toLowerCase()}`}>{evidence.domain.replaceAll('_', ' ')}</span><span className={`citation-validity ${evidence.validation.toLowerCase()}`}><ShieldCheck size={12} />{evidence.validation}</span></div><h1>{evidence.document_title}</h1><p>{evidence.document_number} · {SOURCE_LABELS[evidence.source_type]}</p></div><Link className="outline-button" to={`/cases/${readinessCase.id}#${returnTarget}`}><ExternalLink size={14} /> Xem dữ liệu được đánh giá</Link></header>
+    <header className="citation-detail-hero"><div><div className="citation-title-meta"><span className={`citation-domain ${evidence.domain.toLowerCase()}`}>{DOMAIN_LABELS[evidence.domain]}</span><span className={`citation-validity ${evidence.validation.toLowerCase()}`}><ShieldCheck size={12} />{VALIDATION_LABELS[evidence.validation] ?? evidence.validation}</span></div><h1>{evidence.document_title}</h1><p>{evidence.document_number} · {SOURCE_LABELS[evidence.source_type]}</p></div><Link className="outline-button" to={`/cases/${readinessCase.id}#${returnTarget}`}><ExternalLink size={14} /> Xem dữ liệu được đánh giá</Link></header>
     <div className="citation-detail-grid"><article className="citation-document">
       <section className="exact-quote"><div><Quote size={18} /><span>Đoạn được hệ thống trích dẫn nguyên văn</span></div><blockquote>“{evidence.citation_text}”</blockquote><small>Chunk ID: {evidence.chunk_id}</small></section>
       <section className="citation-section"><div className="citation-section-title"><BookOpen size={17} /><div><h2>Nội dung đầy đủ của căn cứ</h2><p>Phần nội dung bao quanh trích dẫn để nhân viên hiểu đúng ngữ cảnh.</p></div></div>{evidence.domain === 'CASE_DATA' ? <CaseContextContent context={readinessCase.context} /> : <p className="full-policy-content">{evidence.full_content}</p>}</section>

@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .models import CaseRecord
+from .auth import seed_roles_and_users
 
 
 CASE_FIXTURES = [
@@ -139,6 +140,7 @@ def seed_cases(session: Session) -> None:
             if field != "case_id":
                 setattr(record, field, value)
     session.commit()
+    seed_roles_and_users(session)
 
 
 CANONICAL_WORKING_CAPITAL_DOCUMENTS = [
@@ -172,6 +174,13 @@ def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str
     profit_1 = rng.randint(-2, 12) * 100_000_000
     profit_2 = rng.randint(-2, 15) * 100_000_000
     tax_declared_revenue = round(annual_revenue * rng.uniform(0.82, 1.03), 2)
+    total_assets = round(annual_revenue * rng.uniform(0.55, 1.35), 2)
+    current_assets = round(total_assets * rng.uniform(0.35, 0.68), 2)
+    current_ratio = rng.uniform(1.05, 2.25)
+    current_liabilities = round(current_assets / current_ratio, 2)
+    total_debt = round(total_assets * rng.uniform(0.22, 0.68), 2)
+    operating_cash_flow = round(max(profit_2, 0) + annual_revenue * rng.uniform(0.015, 0.07), 2)
+    annual_debt_service = round(max(total_debt * rng.uniform(0.08, 0.18), 50_000_000), 2)
     cic_bad_debt = rng.random() < 0.06
     aml_flags = ["BENEFICIAL_OWNER_REVIEW"] if rng.random() < 0.05 else []
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -224,15 +233,18 @@ def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str
         existing_customer, relationship_months = False, 0
         submitted = list(required[: max(1, len(required) - 2)])
         aml_flags = ["NEW_CUSTOMER_KYC_PENDING"]
-    elif scenario == 6:  # loss-making business
+    elif scenario == 6:  # loss-making business and negative operating cash flow
         submitted = list(required)
         profit_1, profit_2 = -250_000_000, -600_000_000
-    elif scenario == 7:  # account turnover unavailable (OD) / thin evidence (WC)
+        operating_cash_flow = -350_000_000
+    elif scenario == 7:  # weak but present core evidence
         submitted = list(required)
         if product == "CORPORATE_OVERDRAFT":
-            turnover = average_inflow = stability = None
+            turnover = annual_revenue * 0.28
+            average_inflow = turnover / 12
+            stability = 0.31
         else:
-            tax_declared_revenue = None
+            operating_cash_flow = annual_revenue * 0.005
     elif scenario == 8:  # irregular cleanup / conduct warning
         submitted = list(required)
         if product == "CORPORATE_OVERDRAFT":
@@ -243,6 +255,7 @@ def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str
             stability = 0.38
         else:
             collateral_ratio = 0.08
+            total_debt = round(total_assets * 0.88, 2)
     elif scenario == 10:  # complete but borderline relationship
         submitted = list(required)
         existing_customer, relationship_months = True, 12
@@ -262,12 +275,19 @@ def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str
     issue = scenario_code.replace("_", " ").title()
     risk = "Cao" if cic_bad_debt or aml_flags or profit_2 < 0 else "Trung bình" if scenario != 0 else "Thấp"
     score = rng.randint(45, 96)
+    industries = ["Sản xuất", "Thương mại", "Logistics", "Xây dựng", "Nông nghiệp", "Công nghệ", "Dược phẩm", "Thực phẩm"]
+    provinces = ["Hà Nội", "TP. Hồ Chí Minh", "Đà Nẵng", "Hải Phòng", "Bình Dương", "Đồng Nai", "Cần Thơ"]
+    branches = ["Chi nhánh Hoàn Kiếm", "Chi nhánh Sài Gòn", "Chi nhánh Đà Nẵng", "Chi nhánh Hải Phòng", "Chi nhánh Bình Dương"]
+    company_prefixes = ["An Phát", "Minh Long", "Hưng Thịnh", "Đại Việt", "Tân Thành", "Phú Gia", "Hải Nam", "Việt Hưng"]
+    company_suffixes = ["Thương mại", "Sản xuất", "Giải pháp", "Đầu tư", "Kỹ thuật", "Dịch vụ", "Logistics", "Công nghệ"]
+    company_name = f"Công ty TNHH {company_prefixes[(index - 1) % len(company_prefixes)]} {company_suffixes[(index - 1) % len(company_suffixes)]} {index:04d}"
+    tax_code = f"{(index % 8) + 1}0{index:08d}"[-10:]
     return {
         "case_id": case_id,
         "customer_id": f"{prefix}-CUS-{index:06d}",
         "code": case_id,
-        "name": f"Công ty Mock NexusOps {index:06d}",
-        "short_name": f"NexusOps Mock {index:06d}",
+        "name": company_name,
+        "short_name": f"{company_prefixes[(index - 1) % len(company_prefixes)]} {index:04d}",
         "owner": rng.choice(["Nguyễn Minh Anh", "Trần Hoàng Nam", "Lê Thu Hà", "Phạm Đức Long"]),
         "display_amount": f"₫{requested_amount:,.0f}",
         "purpose": purpose,
@@ -287,6 +307,12 @@ def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str
         "annual_revenue": annual_revenue,
         "pretax_profit_last_2_years": [profit_1, profit_2],
         "tax_declared_revenue": tax_declared_revenue,
+        "current_assets": current_assets,
+        "current_liabilities": current_liabilities,
+        "total_debt": total_debt,
+        "total_assets": total_assets,
+        "operating_cash_flow": operating_cash_flow,
+        "annual_debt_service": annual_debt_service,
         "collateral_ratio": collateral_ratio,
         "twelve_month_account_turnover": turnover,
         "account_history_months": relationship_months,
@@ -301,7 +327,22 @@ def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str
         "account_conduct_flags": conduct_flags,
         "cic_bad_debt": cic_bad_debt,
         "kyc_aml_flags": aml_flags,
-        "case_metadata": {"source": "mock-seed", "currency": "VND", "generated_at": now, "scenario": scenario_code},
+        "case_metadata": {
+            "source": "mock-seed",
+            "currency": "VND",
+            "generated_at": now,
+            "scenario": scenario_code,
+            "scenario_description": issue,
+            "industry": industries[(index - 1) % len(industries)],
+            "province": provinces[(index - 1) % len(provinces)],
+            "branch": branches[(index - 1) % len(branches)],
+            "legal_type": "Công ty TNHH" if index % 3 else "Công ty Cổ phần",
+            "tax_code": tax_code,
+            "established_year": str(2000 + index % 24),
+            "employee_count": str(20 + index % 480),
+            "contact_name": rng.choice(["Nguyễn Văn An", "Trần Minh Hà", "Lê Hoàng Nam", "Phạm Thu Trang"]),
+            "contact_phone": f"09{index % 100_000_000:08d}",
+        },
     }
 
 

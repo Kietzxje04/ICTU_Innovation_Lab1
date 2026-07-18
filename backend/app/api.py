@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi import APIRouter, Cookie, Depends, Header, Query, Request, Response
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from nexusops_agent.contracts.state import WorkflowState
 
@@ -13,11 +14,14 @@ from .database import engine, get_session
 from .dependencies import get_action_service, get_agent_service, get_assessment_service, get_resolution_service
 from .exceptions import DomainError
 from .repositories import AssessmentRepository, CaseRepository, run_schema
-from .schemas import ApiResponse, ApprovalRequest, RejectionRequest
+from .schemas import ApiResponse, ApprovalRequest, RejectionRequest, LoginRequest, LoanApprovalRequest, TransferRequest
 from .services import ActionService, AssessmentService, ResolutionService, company_projection
 from .readiness_schemas import CreateReadinessCase
 from .readiness_service import ReadinessService
 from .dependencies import get_readiness_service
+from .auth import CurrentUser, create_session, current_user, revoke_session, verify_password
+from .approval_service import LoanApprovalService
+from .models import RoleRecord, UserRecord
 
 
 router = APIRouter()
@@ -32,6 +36,44 @@ def response(request: Request, data: object, **meta: object) -> ApiResponse:
         data=data,
         meta={"request_id": getattr(request.state, "request_id", "unknown"), "api": "single-backend", **meta},
     )
+
+
+@router.post("/api/auth/login", response_model=ApiResponse)
+def login(request: Request, response_obj: Response, body: LoginRequest, session: Session = Depends(get_session)) -> ApiResponse:
+    user = session.scalar(select(UserRecord).where(UserRecord.username == body.username))
+    if not user or not user.is_active or not verify_password(body.password, user.password_hash):
+        raise DomainError(401, "INVALID_CREDENTIALS", "Tên đăng nhập hoặc mật khẩu không đúng")
+    role = session.get(RoleRecord, user.role_id)
+    token, expires = create_session(session, user)
+    response_obj.set_cookie("nexusops_session", token, httponly=True, secure=request.url.scheme == "https", samesite="lax", expires=expires, path="/")
+    return response(request, {"expires_at": expires.isoformat(), "user": {"user_id": user.user_id, "username": user.username, "full_name": user.full_name, "email": user.email, "role_id": user.role_id, "role_name": role.name if role else user.role_id, "approval_limit": role.approval_limit if role else None, "permissions": role.permissions if role else []}})
+
+
+@router.get("/api/auth/me", response_model=ApiResponse)
+def me(request: Request, user: CurrentUser = Depends(current_user)) -> ApiResponse:
+    return response(request, {"user_id": user.record.user_id, "username": user.record.username, "full_name": user.record.full_name, "email": user.record.email, "role_id": user.role.role_id, "role_name": user.role.name, "approval_limit": user.role.approval_limit, "permissions": user.role.permissions})
+
+
+@router.post("/api/auth/logout", response_model=ApiResponse)
+def logout(request: Request, response_obj: Response, nexusops_session: str | None = Cookie(default=None), session: Session = Depends(get_session)) -> ApiResponse:
+    revoke_session(session, nexusops_session)
+    response_obj.delete_cookie("nexusops_session", path="/", httponly=True, samesite="lax")
+    return response(request, {"logged_out": True})
+
+
+@router.get("/api/cases/{case_id}/loan-approval", response_model=ApiResponse)
+def check_loan_approval(request: Request, case_id: str, user: CurrentUser = Depends(current_user), session: Session = Depends(get_session)) -> ApiResponse:
+    return response(request, LoanApprovalService(session).check(case_id, user))
+
+
+@router.post("/api/cases/{case_id}/loan-approval/approve", response_model=ApiResponse)
+def approve_loan(request: Request, case_id: str, body: LoanApprovalRequest, user: CurrentUser = Depends(current_user), session: Session = Depends(get_session)) -> ApiResponse:
+    return response(request, LoanApprovalService(session).approve(case_id, user, body.reason))
+
+
+@router.post("/api/cases/{case_id}/loan-approval/transfer", response_model=ApiResponse)
+def transfer_loan(request: Request, case_id: str, body: TransferRequest, user: CurrentUser = Depends(current_user), session: Session = Depends(get_session)) -> ApiResponse:
+    return response(request, LoanApprovalService(session).transfer(case_id, user, body.reason, body.target_user_id))
 
 
 @router.get("/health", response_model=ApiResponse)

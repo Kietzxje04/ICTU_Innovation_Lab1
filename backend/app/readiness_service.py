@@ -20,6 +20,18 @@ def _text(value: object | None) -> str:
     return "" if value is None else str(value)
 
 
+def _format_execution_duration(milliseconds: float | None) -> str:
+    if milliseconds is None:
+        return "Chưa xử lý"
+    if milliseconds < 1000:
+        return f"{milliseconds:.0f}ms"
+    if milliseconds < 60_000:
+        return f"{milliseconds / 1000:.1f}s"
+    minutes = int(milliseconds // 60_000)
+    seconds = round((milliseconds % 60_000) / 1000)
+    return f"{minutes}m {seconds}s"
+
+
 def _domain(chunk) -> str:
     if chunk.quality.status == "REVIEW_REQUIRED":
         return "QUARANTINE"
@@ -88,7 +100,8 @@ class ReadinessService:
             company_name=record.name,
             owner=record.owner,
             submitted_at=record.created_at.isoformat(),
-            sla_due=record.sla,
+            sla_due="Chưa xử lý",
+            sla_target=record.sla,
             execution_duration_ms=None,
             context=context,
             workflow=workflow,
@@ -186,13 +199,15 @@ class ReadinessService:
             final_status=run.final_status,
             trace=traces,
         )
+        execution_duration_ms = (run.finished_at - run.started_at).total_seconds() * 1000 if run.finished_at else None
         return ReadinessCase(
             id=record.case_id,
             company_name=record.name,
             owner=record.owner,
             submitted_at=record.created_at.isoformat(),
-            sla_due=record.sla,
-            execution_duration_ms=(run.finished_at - run.started_at).total_seconds() * 1000 if run.finished_at else None,
+            sla_due=_format_execution_duration(execution_duration_ms),
+            sla_target=record.sla,
+            execution_duration_ms=execution_duration_ms,
             context=context,
             workflow=workflow,
             evidence=evidence,
@@ -227,16 +242,16 @@ class ReadinessService:
                 chunk_id=f"{record.case_id}-CASE-DATA",
                 document_id=record.case_id,
                 document_number=record.case_id,
-                document_title="Case intake data",
+                document_title="Dữ liệu tiếp nhận hồ sơ",
                 domain="CASE_DATA",
                 source_type="CASE_RECORD",
-                source_authority="NexusOps Case Service",
-                validity_status="CURRENT_SNAPSHOT",
+                source_authority="Dịch vụ quản lý hồ sơ NexusOps",
+                validity_status="ẢNH_CHỤP_HIỆN_TẠI",
                 effective_date=record.created_at.date().isoformat(),
-                page_or_part="CaseContext",
-                citation_text=f"Case {record.case_id} có {len(context.submitted_documents)}/{len(context.required_documents)} tài liệu đã nộp.",
+                page_or_part="Thông tin hồ sơ",
+                citation_text=f"Hồ sơ {record.case_id} có {len(context.submitted_documents)}/{len(context.required_documents)} tài liệu đã được nộp.",
                 full_content=context.model_dump_json(),
-                evaluation_basis="Đối chiếu trực tiếp dữ liệu CaseContext với output của workflow.",
+                evaluation_basis="Đối chiếu trực tiếp thông tin hồ sơ đầu vào với kết quả của từng khâu trong quy trình.",
                 content_hash=f"sha256:{input_hash(context)}",
                 quality_status="ACCEPTED",
                 validation="VALID",

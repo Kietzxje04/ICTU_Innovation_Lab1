@@ -187,7 +187,7 @@ export function WorkflowCanvas({ context, workflow, evidence, onRun, onRunComple
 
   const runWorkflow = async () => {
     const token = ++runToken.current
-    setRunnerStatus('running'); setActiveIndex(0); setCompletedCount(0); setElapsedMs(0); setRuntimeResults({}); setRuntimeNotice('Backend Agent runtime đang thực thi route thật. Mỗi node chỉ chuyển tiếp sau khi nhận được kết quả runtime.'); setRunError('')
+    setRunnerStatus('running'); setActiveIndex(0); setCompletedCount(0); setElapsedMs(0); setRuntimeResults({}); setRuntimeNotice('Bộ máy tác nhân phía máy chủ đang thực thi quy trình. Mỗi khâu chỉ chuyển tiếp sau khi nhận được kết quả xử lý.'); setRunError('')
     const startedAt = performance.now()
     try {
       const result = await onRun(async (state, node, index) => {
@@ -206,11 +206,11 @@ export function WorkflowCanvas({ context, workflow, evidence, onRun, onRunComple
       const backendElapsedMs = performance.now() - startedAt
       setElapsedMs(backendElapsedMs)
       setActiveIndex(-1); setElapsedMs(backendElapsedMs); setRunnerStatus('completed')
-      setRuntimeNotice('Agentic workflow đã hoàn tất từ kết quả backend thực tế, bao gồm Mandatory Critic và các control gate.')
+      setRuntimeNotice('Quy trình tác nhân đã hoàn tất theo kết quả thực tế từ máy chủ, bao gồm phản biện bắt buộc và các cổng kiểm soát.')
       onRunComplete?.()
     } catch (reason) {
       if (token !== runToken.current) return
-      setRunnerStatus('idle'); setRunError(reason instanceof Error ? reason.message : 'Không thể chạy agentic workflow'); setRuntimeNotice('')
+      setRunnerStatus('idle'); setRunError(reason instanceof Error ? reason.message : 'Không thể chạy quy trình tác nhân'); setRuntimeNotice('')
     }
   }
 

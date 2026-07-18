@@ -11,13 +11,17 @@ interface ApiResponse<T> {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
+    credentials: 'include',
     headers: {
       Accept: 'application/json',
       ...init?.headers,
     },
   })
   const payload = (await response.json()) as ApiResponse<T>
-  if (!response.ok) throw new Error(payload.error?.message ?? `Backend request failed: ${response.status}`)
+  if (!response.ok) {
+    if (response.status === 401) window.dispatchEvent(new Event('nexusops:unauthorized'))
+    throw new Error(payload.error?.message ?? `Backend request failed: ${response.status}`)
+  }
   return payload.data
 }
 
@@ -25,6 +29,17 @@ export interface CreateReadinessCasePayload {
   context: CaseContext
   company_name: string
   owner: string
+}
+
+export interface AuthUser {
+  user_id: string
+  username: string
+  full_name: string
+  email: string
+  role_id: string
+  role_name?: string
+  approval_limit?: number | null
+  permissions?: string[]
 }
 
 export interface ProductIntakeSchema {
@@ -51,6 +66,11 @@ interface StepwiseRunResponse {
 }
 
 export const readinessApi = {
+  login: async (username: string, password: string) => request<{ expires_at: string; user: AuthUser }>('/api/auth/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }),
+  }),
+  me: () => request<AuthUser>('/api/auth/me'),
+  logout: () => request<{ logged_out: boolean }>('/api/auth/logout', { method: 'POST' }),
   list: (signal?: AbortSignal) => request<ReadinessCase[]>('/api/readiness/cases', { signal }),
   get: (caseId: string, signal?: AbortSignal) =>
     request<ReadinessCase>(`/api/readiness/cases/${encodeURIComponent(caseId)}`, { signal }),

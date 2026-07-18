@@ -1,0 +1,47 @@
+.session-check-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: #eef4f8;
+}
+
+.session-check-card {
+  width: min(360px, calc(100% - 32px));
+  padding: 28px;
+  text-align: center;
+  background: #fff;
+  border: 1px solid #cbd8e1;
+  border-radius: 8px;
+  box-shadow: 0 12px 35px rgba(19, 53, 78, .14);
+}
+
+.session-check-card strong,
+.session-check-card p {
+  display: block;
+}
+
+.session-check-card strong {
+  color: #153f60;
+  font-size: 14px;
+}
+
+.session-check-card p {
+  margin: 7px 0 0;
+  color: #71818e;
+  font-size: 9px;
+}
+
+.session-spinner {
+  width: 30px;
+  height: 30px;
+  display: inline-block;
+  margin-bottom: 14px;
+  border: 3px solid #d9e7f0;
+  border-top-color: #ec6c17;
+  border-radius: 50%;
+  animation: session-spin .8s linear infinite;
+}
+
+@keyframes session-spin {
+  to { transform: rotate(360deg); }
+}

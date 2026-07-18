@@ -12,7 +12,7 @@ COPY backend /workspace/backend
 
 RUN python -m pip install --upgrade pip setuptools wheel \
     && python -m pip install /workspace/agent \
-    && sed '/^-e \.\.\/agent$/d' /workspace/backend/requirements.txt > /tmp/backend-requirements.txt \
+    && sed -e 's/\r$//' -e '/^-e \.\.\/agent$/d' /workspace/backend/requirements.txt > /tmp/backend-requirements.txt \
     && python -m pip install -r /tmp/backend-requirements.txt \
     && mkdir -p /workspace/backend/runtime \
                  /workspace/agent/runtime/indexes \
