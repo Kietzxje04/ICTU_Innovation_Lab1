@@ -17,11 +17,11 @@ build/
 # yarn-error.log*
 # pnpm-debug.log*
 
-# # Test and tooling caches
-# coverage/
-# .vite/
-# .cache/
-# *.tsbuildinfo
+# Test and tooling caches
+coverage/
+.vite/
+.cache/
+*.tsbuildinfo
 
 # # Editors and operating systems
 # .idea/
