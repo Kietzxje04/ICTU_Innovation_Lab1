@@ -2,6 +2,7 @@ import { ArrowLeft, BookOpen, Building2, CheckCircle2, Download, FileText, Print
 import { Link, useParams } from 'react-router-dom'
 import { FINAL_STATUS_LABELS, NODE_LABELS } from '../domain'
 import { useReadiness } from '../readiness-context'
+import { useAuth } from '../auth-context'
 
 const money = (value: number | null) => value === null ? 'Chưa cung cấp' : `${new Intl.NumberFormat('vi-VN').format(value)} VND`
 const dateFormatter = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -20,6 +21,7 @@ function downloadBlob(content: BlobPart[], type: string, filename: string) {
 export function ReportPage() {
   const { caseId } = useParams()
   const { cases } = useReadiness()
+  const { user } = useAuth()
   const item = cases.find((entry) => entry.id === caseId)
   if (!item) return <main className="page not-found"><h1>Không tìm thấy hồ sơ báo cáo</h1><Link className="primary-button" to="/">Về dashboard</Link></main>
 
@@ -51,6 +53,7 @@ export function ReportPage() {
     <article className="report-paper" id="company-supplement-report">
       <header className="report-letterhead"><div className="report-logo"><Building2 size={25} /></div><h1>NEXUSOPS AI — SME LOAN READINESS</h1><p>PHIẾU YÊU CẦU BỔ SUNG VÀ GIẢI TRÌNH HỒ SƠ</p><small>Số: {item.id}/RFR · Ngày {dateFormatter.format(reportDate)}</small></header>
       <section className="report-recipient"><p><strong>Kính gửi:</strong> {item.company_name}</p><p><strong>Mã khách hàng:</strong> {context.customer_id}</p><p><strong>Người phụ trách hồ sơ:</strong> {item.owner}</p></section>
+      <section className="report-handler"><h2>Thông tin người xử lý báo cáo</h2><table><tbody><tr><th>Họ và tên</th><td>{user?.full_name ?? item.owner}</td><th>Chức vụ</th><td>{user?.role_name ?? user?.role_id ?? 'Chuyên viên'}</td></tr><tr><th>Tên đăng nhập</th><td>{user?.username ?? '—'}</td><th>Email</th><td>{user?.email ?? '—'}</td></tr></tbody></table></section>
       <section className="report-subject"><strong>V/v: Thông báo kết quả kiểm chứng readiness và yêu cầu bổ sung thông tin</strong><p>Hệ thống đã hoàn tất quy trình kiểm chứng dữ liệu, tài liệu, chỉ số tài chính và căn cứ chính sách cho hồ sơ nêu trên. Kết quả này phục vụ cán bộ chuyên môn rà soát và không phải quyết định phê duyệt hoặc từ chối khoản vay.</p></section>
       <section className={`report-notice ${workflow.final_status === 'BLOCKED' ? 'blocked' : ''}`}><div><ShieldCheck size={19} /><span>Trạng thái sau kiểm chứng</span></div><strong>{FINAL_STATUS_LABELS[workflow.final_status]}</strong><p>Phản biện bắt buộc: {workflow.critic_verdict} · {workflow.route.length} khâu đã được thực hiện.</p></section>
 
