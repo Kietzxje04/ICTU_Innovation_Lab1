@@ -419,6 +419,12 @@ class FullApiTest(unittest.TestCase):
             self.assertEqual((10, 0), (inserted, skipped))
             mock = session.get(CaseRecord, "TEST-MOCK-OD-000001")
             self.assertIsNotNone(mock)
+            working_capital_clean = session.get(CaseRecord, "TEST-MOCK-WC-000002")
+            self.assertIsNotNone(working_capital_clean)
+            self.assertEqual("CLEAN_COMPLETE", mock.case_metadata["scenario"])
+            self.assertEqual("CLEAN_COMPLETE", working_capital_clean.case_metadata["scenario"])
+            self.assertEqual(set(mock.required_documents), set(mock.submitted_documents))
+            self.assertEqual(set(working_capital_clean.required_documents), set(working_capital_clean.submitted_documents))
             for field in (
                 "annual_revenue", "tax_declared_revenue", "current_assets", "current_liabilities",
                 "total_debt", "total_assets", "operating_cash_flow", "annual_debt_service",
@@ -426,6 +432,11 @@ class FullApiTest(unittest.TestCase):
                 self.assertIsNotNone(getattr(mock, field), field)
             for field in ("industry", "province", "branch", "legal_type", "tax_code", "contact_name", "contact_phone"):
                 self.assertTrue(mock.case_metadata.get(field), field)
+            seeded = list(session.scalars(select(CaseRecord).where(CaseRecord.case_id.like("TEST-MOCK-%"))))
+            self.assertTrue(all(set(item.required_documents) == set(item.submitted_documents) for item in seeded))
+            self.assertTrue(all(item.case_metadata.get("data_completeness") == "COMPLETE" for item in seeded))
+            self.assertEqual(8, sum(item.case_metadata.get("scenario") == "CLEAN_COMPLETE" for item in seeded))
+            self.assertEqual(2, sum(item.case_metadata.get("scenario") != "CLEAN_COMPLETE" for item in seeded))
             inserted_again, skipped_again = seed_mock_cases(session, 10, seed=42, prefix="TEST-MOCK")
             self.assertEqual((0, 10), (inserted_again, skipped_again))
 

@@ -4,10 +4,19 @@ import argparse
 import random
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from .models import CaseRecord
+from .models import (
+    AgentArtifactRecord,
+    AssessmentRunRecord,
+    CaseRecord,
+    CitationResultRecord,
+    LoanApprovalRecord,
+    MockExternalActionRecord,
+    ProposedActionRecord,
+    RunEventRecord,
+)
 from .auth import seed_roles_and_users
 
 
@@ -161,9 +170,9 @@ CANONICAL_OVERDRAFT_DOCUMENTS = [
 
 
 def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str, object]:
-    # Keep the large fixture set representative instead of relying on random
-    # chance for rare branches. Every 12 records covers one business scenario.
-    scenario = (index - 1) % 12
+    # Exactly 80% of a standard cohort is clean/approvable input data. Every
+    # fifth record exercises one of the 11 controlled error scenarios.
+    scenario = 0 if index % 5 else 1 + (((index // 5) - 1) % 11)
     product = "CORPORATE_OVERDRAFT" if index % 2 else "WORKING_CAPITAL"
     product_code = "OD" if product == "CORPORATE_OVERDRAFT" else "WC"
     case_id = f"{prefix}-{product_code}-{index:06d}"
@@ -218,8 +227,19 @@ def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str
         submitted = list(required)
         cic_bad_debt, aml_flags, conduct_flags = False, [], []
         tax_declared_revenue = annual_revenue
-    elif scenario == 1:  # missing mandatory documents
-        submitted = list(required[: max(1, len(required) // 2)])
+        profit_1 = round(annual_revenue * 0.06, 2)
+        profit_2 = round(annual_revenue * 0.08, 2)
+        total_debt = round(total_assets * 0.35, 2)
+        current_liabilities = round(current_assets / 1.65, 2)
+        operating_cash_flow = round(annual_revenue * 0.1, 2)
+        annual_debt_service = round(total_debt * 0.1, 2)
+        collateral_ratio = 0.65
+        if product == "CORPORATE_OVERDRAFT":
+            turnover = annual_revenue * 1.2
+            average_inflow = turnover / 12
+            stability = 0.9
+    elif scenario == 1:  # complete document set with quality review required
+        submitted = list(required)
     elif scenario == 2:  # material tax mismatch
         submitted = list(required)
         tax_declared_revenue = round(annual_revenue * 0.72, 2)
@@ -231,7 +251,7 @@ def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str
         aml_flags = ["BENEFICIAL_OWNER_REVIEW"]
     elif scenario == 5:  # new customer / KYC pending
         existing_customer, relationship_months = False, 0
-        submitted = list(required[: max(1, len(required) - 2)])
+        submitted = list(required)
         aml_flags = ["NEW_CUSTOMER_KYC_PENDING"]
     elif scenario == 6:  # loss-making business and negative operating cash flow
         submitted = list(required)
@@ -260,13 +280,13 @@ def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str
         submitted = list(required)
         existing_customer, relationship_months = True, 12
     else:  # combined blockers to exercise mandatory critic and policy gate
-        submitted = list(required[: max(1, len(required) - 1)])
+        submitted = list(required)
         cic_bad_debt = True
         aml_flags = ["BENEFICIAL_OWNER_REVIEW"]
         tax_declared_revenue = round(annual_revenue * 0.78, 2)
 
     scenario_codes = [
-        "CLEAN_COMPLETE", "MISSING_DOCUMENTS", "TAX_MISMATCH", "CIC_BAD_DEBT",
+        "CLEAN_COMPLETE", "DOCUMENT_QUALITY_REVIEW", "TAX_MISMATCH", "CIC_BAD_DEBT",
         "AML_REVIEW", "NEW_CUSTOMER_KYC", "NEGATIVE_PROFIT", "MISSING_CORE_EVIDENCE",
         "IRREGULAR_ACCOUNT_CONDUCT", "PRODUCT_RISK_METRIC", "BORDERLINE_RELATIONSHIP",
         "COMBINED_BLOCKERS",
@@ -333,6 +353,8 @@ def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str
             "generated_at": now,
             "scenario": scenario_code,
             "scenario_description": issue,
+            "data_completeness": "COMPLETE",
+            "document_quality": "REVIEW_REQUIRED" if scenario == 1 else "VALID",
             "industry": industries[(index - 1) % len(industries)],
             "province": provinces[(index - 1) % len(provinces)],
             "branch": branches[(index - 1) % len(branches)],
@@ -351,6 +373,19 @@ def seed_mock_cases(session: Session, count: int = 1000, *, seed: int = 20260718
     if count < 1:
         raise ValueError("count must be greater than zero")
     existing_ids = set(session.scalars(select(CaseRecord.case_id)))
+    if refresh:
+        cohort_ids = list(session.scalars(select(CaseRecord.case_id).where(CaseRecord.case_id.like(f"{prefix}-%"))))
+        if cohort_ids:
+            run_ids = list(session.scalars(select(AssessmentRunRecord.run_id).where(AssessmentRunRecord.case_id.in_(cohort_ids))))
+            session.execute(delete(ProposedActionRecord).where(ProposedActionRecord.case_id.in_(cohort_ids)))
+            session.execute(delete(LoanApprovalRecord).where(LoanApprovalRecord.case_id.in_(cohort_ids)))
+            session.execute(delete(MockExternalActionRecord).where(MockExternalActionRecord.case_id.in_(cohort_ids)))
+            if run_ids:
+                session.execute(delete(CitationResultRecord).where(CitationResultRecord.run_id.in_(run_ids)))
+                session.execute(delete(AgentArtifactRecord).where(AgentArtifactRecord.run_id.in_(run_ids)))
+                session.execute(delete(RunEventRecord).where(RunEventRecord.run_id.in_(run_ids)))
+                session.execute(delete(AssessmentRunRecord).where(AssessmentRunRecord.run_id.in_(run_ids)))
+            session.commit()
     rng = random.Random(seed)
     records = []
     skipped = 0
