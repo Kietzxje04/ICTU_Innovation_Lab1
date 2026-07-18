@@ -9,13 +9,6 @@ function Metric({ label, value, note, icon: Icon, tone }: { label: string; value
   return <article className={`readiness-metric ${tone}`}><div><span>{label}</span><strong>{value}</strong><small>{note}</small></div><i><Icon size={21} /></i></article>
 }
 
-function formatExecutionDuration(milliseconds?: number | null) {
-  if (milliseconds === null || milliseconds === undefined) return 'Chưa chạy'
-  if (milliseconds < 1000) return `${Math.round(milliseconds)}ms`
-  if (milliseconds < 60_000) return `${(milliseconds / 1000).toFixed(1)}s`
-  return `${Math.floor(milliseconds / 60_000)}m ${Math.round(milliseconds % 60_000 / 1000)}s`
-}
-
 export function DashboardPage() {
   const { cases, dataMode, isLoading, error, refresh } = useReadiness()
   const [query, setQuery] = useState('')
@@ -41,7 +34,7 @@ export function DashboardPage() {
     <section className="card readiness-list">
       <div className="card-header"><div><h2>Hàng đợi hồ sơ</h2><p>Dữ liệu {dataMode === 'api' ? 'từ FastAPI backend' : 'chưa sẵn sàng'} theo CaseContext và WorkflowState</p></div><span className="live-indicator"><i /> Workflow snapshot</span></div>
       <div className="readiness-filters"><label><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Mã hồ sơ, khách hàng..." /></label><select value={product} onChange={(event) => setProduct(event.target.value as typeof product)}><option value="ALL">Tất cả sản phẩm</option><option value="CORPORATE_OVERDRAFT">Thấu chi doanh nghiệp</option><option value="WORKING_CAPITAL">Vốn lưu động</option></select><select value={status} onChange={(event) => setStatus(event.target.value as typeof status)}><option value="ALL">Tất cả trạng thái</option><option value="READY_FOR_HUMAN_REVIEW">Sẵn sàng rà soát</option><option value="NEEDS_MORE_EVIDENCE">Cần thêm bằng chứng</option><option value="BLOCKED">Bị chặn</option></select></div>
-      <div className="table-scroll"><table className="readiness-table"><thead><tr><th>Hồ sơ / Khách hàng</th><th>Sản phẩm</th><th>Giá trị đề nghị</th><th>Workflow</th><th>Critic</th><th>Trạng thái</th><th>SLA</th><th /></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}><td><strong>{item.company_name}</strong><span>{item.id} · {item.context.customer_id}</span></td><td><ProductPill product={item.context.product} /></td><td><strong>{new Intl.NumberFormat('vi-VN').format(item.context.requested_amount)} ₫</strong><span>{item.context.metadata.industry}</span></td><td><strong>{item.workflow.route.length} nodes</strong><span>{item.workflow.artifacts.DOCUMENT_COMPLETENESS?.metrics.completeness_ratio ? `${Math.round(item.workflow.artifacts.DOCUMENT_COMPLETENESS.metrics.completeness_ratio * 100)}% tài liệu` : 'Chờ phân tích'}</span></td><td><strong>{item.workflow.critic_verdict}</strong><span>Mandatory</span></td><td><FinalStatusPill status={item.workflow.final_status} /></td><td><strong><Clock3 size={12} /> {item.sla_due}</strong><span>Đã xử lý {formatExecutionDuration(item.execution_duration_ms)}</span></td><td><Link className="row-open" to={`/cases/${item.id}`}><ArrowRight size={16} /></Link></td></tr>)}</tbody></table></div>
+      <div className="table-scroll"><table className="readiness-table"><thead><tr><th>Hồ sơ / Khách hàng</th><th>Sản phẩm</th><th>Giá trị đề nghị</th><th>Workflow</th><th>Critic</th><th>Trạng thái</th><th>SLA xử lý gần nhất</th><th /></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}><td><strong>{item.company_name}</strong><span>{item.id} · {item.context.customer_id}</span></td><td><ProductPill product={item.context.product} /></td><td><strong>{new Intl.NumberFormat('vi-VN').format(item.context.requested_amount)} ₫</strong><span>{item.context.metadata.industry}</span></td><td><strong>{item.workflow.route.length} nodes</strong><span>{item.workflow.artifacts.DOCUMENT_COMPLETENESS?.metrics.completeness_ratio ? `${Math.round(item.workflow.artifacts.DOCUMENT_COMPLETENESS.metrics.completeness_ratio * 100)}% tài liệu` : 'Chờ phân tích'}</span></td><td><strong>{item.workflow.critic_verdict}</strong><span>Mandatory</span></td><td><FinalStatusPill status={item.workflow.final_status} /></td><td><strong><Clock3 size={12} /> {item.sla_due}</strong><span>Lần chạy gần nhất</span></td><td><Link className="row-open" to={`/cases/${item.id}`}><ArrowRight size={16} /></Link></td></tr>)}</tbody></table></div>
       {!filtered.length && <div className="empty-state">Không có hồ sơ phù hợp bộ lọc.</div>}
     </section>
   </main>

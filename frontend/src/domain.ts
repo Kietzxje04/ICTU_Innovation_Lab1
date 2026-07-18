@@ -120,6 +120,7 @@ export interface ReadinessCase {
   owner: string
   submitted_at: string
   sla_due: string
+  sla_target?: string | null
   execution_duration_ms?: number | null
   context: CaseContext
   workflow: WorkflowState

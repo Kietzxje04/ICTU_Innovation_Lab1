@@ -20,6 +20,18 @@ def _text(value: object | None) -> str:
     return "" if value is None else str(value)
 
 
+def _format_execution_duration(milliseconds: float | None) -> str:
+    if milliseconds is None:
+        return "Chưa xử lý"
+    if milliseconds < 1000:
+        return f"{milliseconds:.0f}ms"
+    if milliseconds < 60_000:
+        return f"{milliseconds / 1000:.1f}s"
+    minutes = int(milliseconds // 60_000)
+    seconds = round((milliseconds % 60_000) / 1000)
+    return f"{minutes}m {seconds}s"
+
+
 def _domain(chunk) -> str:
     if chunk.quality.status == "REVIEW_REQUIRED":
         return "QUARANTINE"
@@ -88,7 +100,8 @@ class ReadinessService:
             company_name=record.name,
             owner=record.owner,
             submitted_at=record.created_at.isoformat(),
-            sla_due=record.sla,
+            sla_due="Chưa xử lý",
+            sla_target=record.sla,
             execution_duration_ms=None,
             context=context,
             workflow=workflow,
@@ -186,13 +199,15 @@ class ReadinessService:
             final_status=run.final_status,
             trace=traces,
         )
+        execution_duration_ms = (run.finished_at - run.started_at).total_seconds() * 1000 if run.finished_at else None
         return ReadinessCase(
             id=record.case_id,
             company_name=record.name,
             owner=record.owner,
             submitted_at=record.created_at.isoformat(),
-            sla_due=record.sla,
-            execution_duration_ms=(run.finished_at - run.started_at).total_seconds() * 1000 if run.finished_at else None,
+            sla_due=_format_execution_duration(execution_duration_ms),
+            sla_target=record.sla,
+            execution_duration_ms=execution_duration_ms,
             context=context,
             workflow=workflow,
             evidence=evidence,
