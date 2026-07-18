@@ -229,8 +229,8 @@ def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str
             turnover = annual_revenue * 1.2
             average_inflow = turnover / 12
             stability = 0.9
-    elif scenario == 1:  # missing mandatory documents
-        submitted = list(required[: max(1, len(required) // 2)])
+    elif scenario == 1:  # complete document set with quality review required
+        submitted = list(required)
     elif scenario == 2:  # material tax mismatch
         submitted = list(required)
         tax_declared_revenue = round(annual_revenue * 0.72, 2)
@@ -242,7 +242,7 @@ def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str
         aml_flags = ["BENEFICIAL_OWNER_REVIEW"]
     elif scenario == 5:  # new customer / KYC pending
         existing_customer, relationship_months = False, 0
-        submitted = list(required[: max(1, len(required) - 2)])
+        submitted = list(required)
         aml_flags = ["NEW_CUSTOMER_KYC_PENDING"]
     elif scenario == 6:  # loss-making business and negative operating cash flow
         submitted = list(required)
@@ -271,13 +271,13 @@ def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str
         submitted = list(required)
         existing_customer, relationship_months = True, 12
     else:  # combined blockers to exercise mandatory critic and policy gate
-        submitted = list(required[: max(1, len(required) - 1)])
+        submitted = list(required)
         cic_bad_debt = True
         aml_flags = ["BENEFICIAL_OWNER_REVIEW"]
         tax_declared_revenue = round(annual_revenue * 0.78, 2)
 
     scenario_codes = [
-        "CLEAN_COMPLETE", "MISSING_DOCUMENTS", "TAX_MISMATCH", "CIC_BAD_DEBT",
+        "CLEAN_COMPLETE", "DOCUMENT_QUALITY_REVIEW", "TAX_MISMATCH", "CIC_BAD_DEBT",
         "AML_REVIEW", "NEW_CUSTOMER_KYC", "NEGATIVE_PROFIT", "MISSING_CORE_EVIDENCE",
         "IRREGULAR_ACCOUNT_CONDUCT", "PRODUCT_RISK_METRIC", "BORDERLINE_RELATIONSHIP",
         "COMBINED_BLOCKERS",
@@ -344,6 +344,8 @@ def _mock_case(index: int, rng: random.Random, prefix: str = "MOCK") -> dict[str
             "generated_at": now,
             "scenario": scenario_code,
             "scenario_description": issue,
+            "data_completeness": "COMPLETE",
+            "document_quality": "REVIEW_REQUIRED" if scenario == 1 else "VALID",
             "industry": industries[(index - 1) % len(industries)],
             "province": provinces[(index - 1) % len(provinces)],
             "branch": branches[(index - 1) % len(branches)],
