@@ -5,6 +5,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { NewCasePage } from './pages/NewCasePage'
 import { TracePage } from './pages/TracePage'
 import { CitationDetailPage, CitationLibraryPage } from './pages/CitationPages'
+import { ReportPage } from './pages/ReportPage'
 import { ReadinessProvider } from './readiness-context'
 
 export default function App() {
@@ -15,6 +16,8 @@ export default function App() {
     <Route path="/trace" element={<TracePage />} />
     <Route path="/citations/:caseId" element={<CitationLibraryPage />} />
     <Route path="/citations/:caseId/:chunkId" element={<CitationDetailPage />} />
+    <Route path="/reports/:caseId" element={<ReportPage />} />
     <Route path="*" element={<DashboardPage />} />
   </Routes></Layout></ReadinessProvider>
 }
+

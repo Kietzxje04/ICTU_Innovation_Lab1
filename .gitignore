@@ -27,6 +27,7 @@ __pycache__/
 .pytest_cache/
 .venv/
 .venv*/
+**/venv/
 backend/runtime/*.db
 backend/runtime/*.db-*
 
