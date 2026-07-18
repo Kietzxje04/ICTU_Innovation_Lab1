@@ -1,0 +1,12 @@
+{
+  "product": "CORPORATE_OVERDRAFT",
+  "policy_source": "SHB_SME_POLICY_2026_DEMO",
+  "synthetic": true,
+  "required_documents": ["BCTC", "TAX_DECLARATION", "CIC_CONSENT", "OVERDRAFT_REQUEST"],
+  "rules": [
+    {"rule_id": "OD_RELATIONSHIP_12M", "field": "relationship_months", "operator": ">=", "value": 12, "reason_code": "RELATIONSHIP_TOO_SHORT"},
+    {"rule_id": "OD_PROFIT_POSITIVE_2Y", "field": "pretax_profit_last_2_years", "operator": "all_gt", "value": 0, "reason_code": "PROFIT_NOT_POSITIVE"},
+    {"rule_id": "OD_CIC_CLEAR", "field": "cic_bad_debt", "operator": "==", "value": false, "reason_code": "CIC_BAD_DEBT"},
+    {"rule_id": "OD_REVENUE_MIN", "field": "annual_revenue", "operator": ">=", "value": 10000000000, "reason_code": "REVENUE_BELOW_DEMO_THRESHOLD"}
+  ]
+}
