@@ -139,23 +139,30 @@ export const FINAL_STATUS_LABELS: Record<FinalStatus, string> = {
   BLOCKED: 'Bị chặn',
 }
 
+export const CRITIC_LABELS: Record<CriticVerdict, string> = {
+  PENDING: 'Chờ phản biện',
+  PASS: 'Đạt',
+  REVISE: 'Cần chỉnh sửa',
+  ESCALATE: 'Chuyển chuyên viên',
+}
+
 export const NODE_LABELS: Record<string, string> = {
   DOCUMENT_CLASSIFIER: 'Phân loại tài liệu',
   REQUIREMENT_MATRIX: 'Ma trận hồ sơ sản phẩm',
   OVERDRAFT_METRICS: 'Chỉ số vận hành thấu chi',
   CIC_KYC_TOOLS: 'Đối chiếu CIC và KYC',
   EXISTING_CUSTOMER_GATE: 'Kiểm tra khách hàng hiện hữu',
-  PRODUCT_AGENT: 'Agent sản phẩm',
+  PRODUCT_AGENT: 'Tác nhân sản phẩm',
   DOCUMENT_COMPLETENESS: 'Độ đầy đủ tài liệu',
   ACCOUNT_TURNOVER: 'Phân tích vòng quay tài khoản',
   FINANCIAL_METRICS: 'Chỉ số tài chính',
   TAX_CONSISTENCY: 'Đối chiếu thuế',
-  CREDIT_AGENT: 'Agent tín dụng',
-  COMPLIANCE_AGENT: 'Agent tuân thủ',
-  READINESS_RULE_ENGINE: 'Readiness rule engine',
-  MANDATORY_CRITIC: 'Mandatory Critic',
-  CITATION_VALIDATOR: 'Citation Validator',
-  POLICY_GATE: 'Policy Gate',
+  CREDIT_AGENT: 'Tác nhân tín dụng',
+  COMPLIANCE_AGENT: 'Tác nhân tuân thủ',
+  READINESS_RULE_ENGINE: 'Bộ quy tắc mức độ sẵn sàng',
+  MANDATORY_CRITIC: 'Khâu phản biện bắt buộc',
+  CITATION_VALIDATOR: 'Khâu kiểm chứng trích dẫn',
+  POLICY_GATE: 'Cổng kiểm soát chính sách',
 }
 
 export function buildRoute(context: CaseContext) {
