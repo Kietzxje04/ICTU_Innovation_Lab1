@@ -56,11 +56,82 @@ CASE_FIXTURES = [
         pretax_profit_last_2_years=[1_100_000_000, 1_250_000_000], tax_declared_revenue=None,
         cic_bad_debt=False, kyc_aml_flags=[], case_metadata={"currency": "VND", "source": "frontend-data.ts"},
     ),
+    dict(
+        case_id="CASE-WC-2026-0142", customer_id="CUS-001842", code="CASE-WC-2026-0142",
+        name="Công ty TNHH Công nghệ Toàn Cầu", short_name="Công nghệ Toàn Cầu", owner="Nguyễn Minh Anh",
+        display_amount="₫12,000,000,000", purpose="Vốn lưu động", sla="02:15:00", submitted_label="2026-07-18 03:45",
+        agent_label="NexusOps-Agent", score=0, display_status="Đang chờ rà soát", risk="Trung bình",
+        issue="Chênh lệch doanh thu tài chính và khai thuế", existing_customer=True, product="WORKING_CAPITAL",
+        requested_amount=12_000_000_000, relationship_months=38,
+        submitted_documents=["BUSINESS_REGISTRATION", "FINANCIAL_STATEMENTS_2Y", "CIC_REPORT", "WORKING_CAPITAL_PLAN"],
+        required_documents=["BUSINESS_REGISTRATION", "FINANCIAL_STATEMENTS_2Y", "TAX_RETURNS_2Y", "CIC_REPORT", "WORKING_CAPITAL_PLAN"],
+        annual_revenue=48_000_000_000, pretax_profit_last_2_years=[3_200_000_000, 3_850_000_000],
+        tax_declared_revenue=39_500_000_000, cic_bad_debt=False, kyc_aml_flags=[],
+        case_metadata={"industry": "Phan phoi thiet bi", "branch": "ICTU Thai Nguyen", "currency": "VND", "snapshot_date": "2026-07-18"},
+    ),
+    dict(
+        case_id="CASE-OD-2026-0138", customer_id="CUS-001227", code="CASE-OD-2026-0138",
+        name="Cong ty Co phan Bao bi Hung Phat", short_name="Bao bi Hung Phat", owner="Tran Hoang Nam",
+        display_amount="₫5,500,000,000", purpose="Thau chi doanh nghiep", sla="00:45:00", submitted_label="2026-07-18 02:10",
+        agent_label="NexusOps-Agent", score=0, display_status="Đang chờ rà soát", risk="Trung bình",
+        issue="Vong quay tai khoan can giai trinh", existing_customer=True, product="CORPORATE_OVERDRAFT",
+        requested_amount=5_500_000_000, relationship_months=64,
+        submitted_documents=["BUSINESS_REGISTRATION", "BANK_STATEMENTS_12M", "CIC_REPORT", "LOAN_PURPOSE_PLAN"],
+        required_documents=["BUSINESS_REGISTRATION", "BANK_STATEMENTS_12M", "CIC_REPORT", "LOAN_PURPOSE_PLAN"],
+        annual_revenue=76_000_000_000, pretax_profit_last_2_years=[5_400_000_000, 6_100_000_000],
+        tax_declared_revenue=74_800_000_000, cic_bad_debt=False, kyc_aml_flags=[],
+        case_metadata={"industry": "San xuat bao bi", "branch": "ICTU Ha Noi", "currency": "VND", "turnover_alert": "true", "snapshot_date": "2026-07-18"},
+    ),
+    dict(
+        case_id="CASE-WC-2026-0129", customer_id="CUS-004105", code="CASE-WC-2026-0129",
+        name="Cong ty Co phan Xuat nhap khau Dong A", short_name="Xuat nhap khau Dong A", owner="Le Thu Ha",
+        display_amount="₫18,000,000,000", purpose="Von luu dong", sla="02:15:00", submitted_label="2026-07-17 09:20",
+        agent_label="NexusOps-Agent", score=0, display_status="Đang chờ rà soát", risk="Cao",
+        issue="Can xac minh chu so huu huong loi", existing_customer=True, product="WORKING_CAPITAL",
+        requested_amount=18_000_000_000, relationship_months=19,
+        submitted_documents=["BUSINESS_REGISTRATION", "FINANCIAL_STATEMENTS_2Y", "TAX_RETURNS_2Y", "CIC_REPORT", "WORKING_CAPITAL_PLAN"],
+        required_documents=["BUSINESS_REGISTRATION", "FINANCIAL_STATEMENTS_2Y", "TAX_RETURNS_2Y", "CIC_REPORT", "WORKING_CAPITAL_PLAN"],
+        annual_revenue=91_000_000_000, pretax_profit_last_2_years=[2_100_000_000, 1_650_000_000],
+        tax_declared_revenue=90_500_000_000, cic_bad_debt=False, kyc_aml_flags=["BENEFICIAL_OWNER_REVIEW"],
+        case_metadata={"industry": "Xuat nhap khau", "branch": "ICTU Bac Ninh", "currency": "VND", "snapshot_date": "2026-07-17"},
+    ),
+    dict(
+        case_id="CASE-OD-2026-0117", customer_id="CUS-003014", code="CASE-OD-2026-0117",
+        name="Cong ty TNHH Van tai Minh Long", short_name="Van tai Minh Long", owner="Pham Duc Long",
+        display_amount="₫3,200,000,000", purpose="Thau chi doanh nghiep", sla="Tam dung", submitted_label="2026-07-17 06:05",
+        agent_label="NexusOps-Agent", score=0, display_status="Đang chờ rà soát", risk="Cao",
+        issue="CIC co no xau va thieu ke hoach su dung von", existing_customer=True, product="CORPORATE_OVERDRAFT",
+        requested_amount=3_200_000_000, relationship_months=11,
+        submitted_documents=["BUSINESS_REGISTRATION", "BANK_STATEMENTS_12M", "CIC_REPORT"],
+        required_documents=["BUSINESS_REGISTRATION", "BANK_STATEMENTS_12M", "CIC_REPORT", "LOAN_PURPOSE_PLAN"],
+        annual_revenue=22_000_000_000, pretax_profit_last_2_years=[900_000_000, 720_000_000],
+        tax_declared_revenue=21_700_000_000, cic_bad_debt=True, kyc_aml_flags=[],
+        case_metadata={"industry": "Van tai", "branch": "ICTU Hai Phong", "currency": "VND", "snapshot_date": "2026-07-17"},
+    ),
+    dict(
+        case_id="CASE-WC-2026-0104", customer_id="CUS-NEW-0088", code="CASE-WC-2026-0104",
+        name="Cong ty TNHH Nong san An Phu", short_name="Nong san An Phu", owner="Do Khanh Linh",
+        display_amount="₫7,500,000,000", purpose="Von luu dong", sla="Tam dung", submitted_label="2026-07-16 08:40",
+        agent_label="NexusOps-Agent", score=0, display_status="Đang chờ rà soát", risk="Cao",
+        issue="Khach hang moi, thieu ho so va co co AML", existing_customer=False, product="WORKING_CAPITAL",
+        requested_amount=7_500_000_000, relationship_months=0,
+        submitted_documents=["BUSINESS_REGISTRATION", "FINANCIAL_STATEMENTS_2Y", "WORKING_CAPITAL_PLAN"],
+        required_documents=["BUSINESS_REGISTRATION", "FINANCIAL_STATEMENTS_2Y", "TAX_RETURNS_2Y", "CIC_REPORT", "WORKING_CAPITAL_PLAN"],
+        annual_revenue=16_500_000_000, pretax_profit_last_2_years=[420_000_000, -180_000_000],
+        tax_declared_revenue=14_200_000_000, cic_bad_debt=False, kyc_aml_flags=["NEW_CUSTOMER_KYC_PENDING"],
+        case_metadata={"industry": "Thuong mai nong san", "branch": "ICTU Thai Nguyen", "currency": "VND", "snapshot_date": "2026-07-16"},
+    ),
 ]
 
 
 def seed_cases(session: Session) -> None:
-    if session.scalar(select(CaseRecord.case_id).limit(1)) is not None:
-        return
-    session.add_all(CaseRecord(**fixture) for fixture in CASE_FIXTURES)
+    existing = {record.case_id: record for record in session.scalars(select(CaseRecord))}
+    for fixture in CASE_FIXTURES:
+        record = existing.get(fixture["case_id"])
+        if record is None:
+            session.add(CaseRecord(**fixture))
+            continue
+        for field, value in fixture.items():
+            if field != "case_id":
+                setattr(record, field, value)
     session.commit()

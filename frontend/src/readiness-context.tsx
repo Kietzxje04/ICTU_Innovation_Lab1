@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { CaseContext, ReadinessCase } from './domain'
-import { apiReadinessAdapter, fallbackReadinessAdapter } from './readiness-adapter'
+import { apiReadinessAdapter } from './readiness-adapter'
 
 interface CreateCasePayload {
   context: CaseContext
@@ -10,7 +10,7 @@ interface CreateCasePayload {
 
 interface ReadinessContextValue {
   cases: ReadinessCase[]
-  dataMode: 'api' | 'fallback'
+  dataMode: 'api' | 'error'
   isLoading: boolean
   error: string | null
   refresh: () => void
@@ -21,7 +21,7 @@ const ReadinessContext = createContext<ReadinessContextValue | null>(null)
 
 export function ReadinessProvider({ children }: { children: React.ReactNode }) {
   const [cases, setCases] = useState<ReadinessCase[]>([])
-  const [dataMode, setDataMode] = useState<'api' | 'fallback'>('api')
+  const [dataMode, setDataMode] = useState<'api' | 'error'>('api')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshToken, setRefreshToken] = useState(0)
@@ -37,8 +37,8 @@ export function ReadinessProvider({ children }: { children: React.ReactNode }) {
       })
       .catch((reason: unknown) => {
         if (reason instanceof DOMException && reason.name === 'AbortError') return
-        setCases(fallbackReadinessAdapter.listCases())
-        setDataMode('fallback')
+        setCases([])
+        setDataMode('error')
         setError(reason instanceof Error ? reason.message : 'Không thể kết nối backend')
       })
       .finally(() => {

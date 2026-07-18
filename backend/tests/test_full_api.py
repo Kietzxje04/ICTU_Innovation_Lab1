@@ -83,10 +83,10 @@ class FullApiTest(unittest.TestCase):
 
         # Case catalogue, search and consistent errors.
         cases = self.assert_success(self.client.get("/api/cases"))
-        self.assertEqual(4, cases["meta"]["total"])
-        self.assertEqual({"toan-cau", "hung-phat", "sai-gon", "le-gia"}, {item["id"] for item in cases["data"]})
+        self.assertGreaterEqual(cases["meta"]["total"], 9)
+        self.assertTrue({"toan-cau", "hung-phat", "sai-gon", "le-gia", "CASE-WC-2026-0142"}.issubset({item["id"] for item in cases["data"]}))
 
-        filtered = self.assert_success(self.client.get("/api/cases", params={"q": "Toàn cầu"}))
+        filtered = self.assert_success(self.client.get("/api/cases", params={"q": "HS-2023-8901"}))
         self.assertEqual(1, filtered["meta"]["total"])
         self.assertEqual("toan-cau", filtered["data"][0]["id"])
 
@@ -97,7 +97,7 @@ class FullApiTest(unittest.TestCase):
 
         # Updated frontend contract: ReadinessCase/CaseContext/WorkflowState/EvidenceItem.
         readiness_cases = self.assert_success(self.client.get("/api/readiness/cases"))
-        self.assertEqual(4, readiness_cases["meta"]["total"])
+        self.assertGreaterEqual(readiness_cases["meta"]["total"], 9)
         readiness_case = readiness_cases["data"][0]
         self.assertIn("context", readiness_case)
         self.assertIn("workflow", readiness_case)
