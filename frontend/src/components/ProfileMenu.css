@@ -1,8 +1,21 @@
 .profile-menu {
   position: fixed;
   z-index: 300;
-  top: 14px;
-  right: 18px;
+  top: 8px;
+  right: 14px;
+}
+
+.profile-card { min-width: 205px; padding: 9px 12px; color: #fff; background: #17639d; border: 1px solid #3d84ba; border-radius: 6px; box-shadow: 0 5px 14px rgba(12, 54, 88, .2); }
+.profile-card strong, .profile-card span { display: block; }
+.profile-card strong { font-size: 11px; }
+.profile-card span { margin-top: 3px; color: #b9dcf3; font-size: 9px; }
+.profile-card button { display: flex; align-items: center; gap: 5px; margin-top: 8px; padding: 5px 10px; color: #fff; background: transparent; border: 1px solid rgba(255,255,255,.5); border-radius: 4px; font-size: 9px; font-weight: 700; cursor: pointer; }
+
+.topbar { padding-right: 240px; }
+
+@media (max-width: 760px) {
+  .profile-card { min-width: 145px; }
+  .topbar { padding-right: 170px; }
 }
 
 .profile-menu > .avatar {
