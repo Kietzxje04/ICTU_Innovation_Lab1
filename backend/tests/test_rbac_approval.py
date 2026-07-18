@@ -32,7 +32,11 @@ class RbacApprovalTest(unittest.TestCase):
         self.assertFalse(role_can_approve("EMPLOYEE", 500_000_000))
         self.assertTrue(role_can_approve("MANAGER", 999_999_999))
         self.assertFalse(role_can_approve("MANAGER", 1_000_000_000))
+        self.assertTrue(role_can_approve("DIRECTOR", 100_000_000))
+        self.assertTrue(role_can_approve("DIRECTOR", 499_999_999))
+        self.assertTrue(role_can_approve("DIRECTOR", 999_999_999))
         self.assertTrue(role_can_approve("DIRECTOR", 1_000_000_000))
+        self.assertTrue(role_can_approve("DIRECTOR", 10_000_000_000))
 
     def test_large_loan_transfers_employee_manager_director(self) -> None:
         with Session(self.engine) as session:

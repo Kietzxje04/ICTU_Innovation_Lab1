@@ -49,7 +49,7 @@ class LoanApprovalService:
         ready, blockers = self._readiness(case_id)
         assigned_role = record.current_role
         can_act = ROLE_ORDER[user.role.role_id] >= ROLE_ORDER[assigned_role]
-        can_approve = ready and can_act and user.role.role_id == assigned_role and role_can_approve(user.role.role_id, case.requested_amount)
+        can_approve = ready and can_act and role_can_approve(user.role.role_id, case.requested_amount)
         required_role = "EMPLOYEE" if case.requested_amount < 500_000_000 else "MANAGER" if case.requested_amount < 1_000_000_000 else "DIRECTOR"
         return {
             "case_id": case_id,
@@ -61,7 +61,7 @@ class LoanApprovalService:
             "ready": ready,
             "blockers": blockers,
             "can_approve": can_approve,
-            "must_transfer": ready and assigned_role != required_role,
+            "must_transfer": ready and not role_can_approve(assigned_role, case.requested_amount),
             "permissions": user.role.permissions,
         }
 
@@ -73,8 +73,8 @@ class LoanApprovalService:
             return self.serialize(record)
         if not status["ready"]:
             raise DomainError(409, "LOAN_NOT_READY", "Hồ sơ chưa đủ điều kiện phê duyệt", status["blockers"])
-        if user.role.role_id != record.current_role:
-            raise DomainError(403, "APPROVAL_NOT_ASSIGNED", "Hồ sơ chưa được chuyển đến cấp của bạn")
+        if ROLE_ORDER[user.role.role_id] < ROLE_ORDER[record.current_role]:
+            raise DomainError(403, "APPROVAL_NOT_ASSIGNED", "Hồ sơ đang được xử lý ở cấp thẩm quyền cao hơn")
         if not role_can_approve(user.role.role_id, case.requested_amount):
             raise DomainError(403, "APPROVAL_LIMIT_EXCEEDED", "Giá trị khoản vay vượt thẩm quyền; vui lòng chuyển hồ sơ lên cấp trên")
         now = datetime.now(timezone.utc)

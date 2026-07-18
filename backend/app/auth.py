@@ -66,7 +66,8 @@ def current_user(
 
 def role_can_approve(role_id: str, amount: float) -> bool:
     if role_id == ROLE_DIRECTOR:
-        return amount >= 1_000_000_000
+        # Giám đốc kế thừa toàn bộ thẩm quyền cấp dưới và không có trần hạn mức.
+        return True
     if role_id == ROLE_MANAGER:
         return amount < 1_000_000_000
     return role_id == ROLE_EMPLOYEE and amount < 500_000_000
