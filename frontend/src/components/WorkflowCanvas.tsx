@@ -138,7 +138,7 @@ function computeDurations(route: string[], totalMs = 12_000) {
 
 const delay = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds))
 
-export function WorkflowCanvas({ context, workflow, evidence }: { context: CaseContext; workflow: WorkflowState; evidence: EvidenceItem[] }) {
+export function WorkflowCanvas({ context, workflow, evidence, onRunComplete }: { context: CaseContext; workflow: WorkflowState; evidence: EvidenceItem[]; onRunComplete?: () => void }) {
   const [runnerStatus, setRunnerStatus] = useState<RunnerStatus>('idle')
   const [activeIndex, setActiveIndex] = useState(-1)
   const [completedCount, setCompletedCount] = useState(0)
@@ -174,7 +174,7 @@ export function WorkflowCanvas({ context, workflow, evidence }: { context: CaseC
       else if (result === 'warning') setRuntimeNotice((current) => current.includes('lỗi chặn') ? current : `${NODE_LABELS[node] ?? node} phát hiện điểm cần rà soát. Vấn đề được chuyển tiếp sang các khâu kiểm soát.`)
       setCompletedCount(index + 1)
     }
-    setActiveIndex(-1); setElapsedMs(durations.reduce((sum, value) => sum + value, 0)); setRunnerStatus('completed')
+    setActiveIndex(-1); setElapsedMs(durations.reduce((sum, value) => sum + value, 0)); setRunnerStatus('completed'); onRunComplete?.()
   }
 
   const resetWorkflow = () => { runToken.current += 1; setRunnerStatus('idle'); setActiveIndex(-1); setCompletedCount(0); setElapsedMs(0); setRuntimeResults({}); setRuntimeNotice('') }
