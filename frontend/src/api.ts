@@ -67,6 +67,7 @@ export const readinessApi = {
   login: async (username: string, password: string) => request<{ access_token: string; token_type: string; expires_at: string; user: AuthUser }>('/api/auth/login', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }),
   }),
+  me: () => request<AuthUser>('/api/auth/me'),
   list: (signal?: AbortSignal) => request<ReadinessCase[]>('/api/readiness/cases', { signal }),
   get: (caseId: string, signal?: AbortSignal) =>
     request<ReadinessCase>(`/api/readiness/cases/${encodeURIComponent(caseId)}`, { signal }),

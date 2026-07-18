@@ -1,10 +1,11 @@
-import { createContext, useContext, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { readinessApi, type AuthUser } from './api'
 
 interface AuthContextValue {
   token: string | null
   user: AuthUser | null
   isAuthenticated: boolean
+  isCheckingSession: boolean
   login: (username: string, password: string) => Promise<void>
   logout: () => void
 }
@@ -19,21 +20,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const stored = window.localStorage.getItem(USER_KEY)
     return stored ? JSON.parse(stored) as AuthUser : null
   })
+  const [isCheckingSession, setIsCheckingSession] = useState(Boolean(token))
+  const clearSession = () => {
+    setToken(null); setUser(null)
+    window.localStorage.removeItem(TOKEN_KEY); window.localStorage.removeItem(USER_KEY)
+  }
+  useEffect(() => {
+    if (!token) { setIsCheckingSession(false); return }
+    setIsCheckingSession(true)
+    readinessApi.me()
+      .then((currentUser) => {
+        setUser(currentUser)
+        window.localStorage.setItem(USER_KEY, JSON.stringify(currentUser))
+      })
+      .catch(clearSession)
+      .finally(() => setIsCheckingSession(false))
+  }, [token])
   const value = useMemo<AuthContextValue>(() => ({
     token,
     user,
     isAuthenticated: Boolean(token && user),
+    isCheckingSession,
     login: async (username, password) => {
       const result = await readinessApi.login(username, password)
       setToken(result.access_token); setUser(result.user)
       window.localStorage.setItem(TOKEN_KEY, result.access_token)
       window.localStorage.setItem(USER_KEY, JSON.stringify(result.user))
     },
-    logout: () => {
-      setToken(null); setUser(null)
-      window.localStorage.removeItem(TOKEN_KEY); window.localStorage.removeItem(USER_KEY)
-    },
-  }), [token, user])
+    logout: clearSession,
+  }), [token, user, isCheckingSession])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
