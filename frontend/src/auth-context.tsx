@@ -14,16 +14,19 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 const TOKEN_KEY = 'nexusops-access-token'
 const USER_KEY = 'nexusops-auth-user'
 
+window.localStorage.removeItem(TOKEN_KEY)
+window.localStorage.removeItem(USER_KEY)
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState(() => window.localStorage.getItem(TOKEN_KEY))
+  const [token, setToken] = useState(() => window.sessionStorage.getItem(TOKEN_KEY))
   const [user, setUser] = useState<AuthUser | null>(() => {
-    const stored = window.localStorage.getItem(USER_KEY)
+    const stored = window.sessionStorage.getItem(USER_KEY)
     return stored ? JSON.parse(stored) as AuthUser : null
   })
   const [isCheckingSession, setIsCheckingSession] = useState(Boolean(token))
   const clearSession = () => {
     setToken(null); setUser(null)
-    window.localStorage.removeItem(TOKEN_KEY); window.localStorage.removeItem(USER_KEY)
+    window.sessionStorage.removeItem(TOKEN_KEY); window.sessionStorage.removeItem(USER_KEY)
   }
   useEffect(() => {
     if (!token) { setIsCheckingSession(false); return }
@@ -31,7 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     readinessApi.me()
       .then((currentUser) => {
         setUser(currentUser)
-        window.localStorage.setItem(USER_KEY, JSON.stringify(currentUser))
+        window.sessionStorage.setItem(USER_KEY, JSON.stringify(currentUser))
       })
       .catch(clearSession)
       .finally(() => setIsCheckingSession(false))
@@ -44,8 +47,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login: async (username, password) => {
       const result = await readinessApi.login(username, password)
       setToken(result.access_token); setUser(result.user)
-      window.localStorage.setItem(TOKEN_KEY, result.access_token)
-      window.localStorage.setItem(USER_KEY, JSON.stringify(result.user))
+      window.sessionStorage.setItem(TOKEN_KEY, result.access_token)
+      window.sessionStorage.setItem(USER_KEY, JSON.stringify(result.user))
     },
     logout: clearSession,
   }), [token, user, isCheckingSession])
@@ -59,5 +62,5 @@ export function useAuth() {
 }
 
 export function authToken() {
-  return window.localStorage.getItem(TOKEN_KEY)
+  return window.sessionStorage.getItem(TOKEN_KEY)
 }

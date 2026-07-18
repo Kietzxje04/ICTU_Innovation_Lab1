@@ -9,7 +9,7 @@ interface ApiResponse<T> {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = window.localStorage.getItem('nexusops-access-token')
+  const token = window.sessionStorage.getItem('nexusops-access-token')
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
