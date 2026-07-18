@@ -9,3 +9,5 @@ runtime/traces/*
 !runtime/traces/.gitkeep
 runtime/evaluations/*
 !runtime/evaluations/.gitkeep
+runtime/rag/*
+!runtime/rag/.gitkeep
