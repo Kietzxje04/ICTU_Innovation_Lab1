@@ -28,6 +28,13 @@ function ProtectedApp() {
   </Routes></Layout></ReadinessProvider>
 }
 
+function LoginRoute() {
+  const { isAuthenticated, isCheckingSession } = useAuth()
+  if (isCheckingSession) return <main className="session-check-page"><div className="session-check-card"><span className="session-spinner" /><strong>Đang kiểm tra phiên đăng nhập</strong></div></main>
+  if (isAuthenticated) return <Navigate to="/" replace />
+  return <LoginPage />
+}
+
 export default function App() {
-  return <AuthProvider><Routes><Route path="/login" element={<LoginPage />} /><Route path="*" element={<ProtectedApp />} /></Routes></AuthProvider>
+  return <AuthProvider><Routes><Route path="/login" element={<LoginRoute />} /><Route path="*" element={<ProtectedApp />} /></Routes></AuthProvider>
 }

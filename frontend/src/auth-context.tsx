@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { readinessApi, type AuthUser } from './api'
 
 interface AuthContextValue {
@@ -10,42 +10,57 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
-const USER_KEY = 'nexusops-auth-user'
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isCheckingSession, setIsCheckingSession] = useState(true)
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    const stored = window.sessionStorage.getItem(USER_KEY)
-    return stored ? JSON.parse(stored) as AuthUser : null
-  })
-  const clearSession = () => {
-    setUser(null)
-    window.sessionStorage.removeItem(USER_KEY)
-  }
-  useEffect(() => {
-    // Xóa thông tin xác thực kiểu cũ: phiên hợp lệ chỉ được xác định bởi
-    // cookie HttpOnly và bản ghi auth_sessions ở phía máy chủ.
-    window.sessionStorage.removeItem('nexusops-access-token')
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const clearSession = useCallback(() => setUser(null), [])
+  const verifySession = useCallback(async () => {
     setIsCheckingSession(true)
-    readinessApi.me()
-      .then((currentUser) => {
-        setUser(currentUser)
-        window.sessionStorage.setItem(USER_KEY, JSON.stringify(currentUser))
-      })
-      .catch(clearSession)
-      .finally(() => setIsCheckingSession(false))
-  }, [])
+    try {
+      setUser(await readinessApi.me())
+    } catch {
+      clearSession()
+    } finally {
+      setIsCheckingSession(false)
+    }
+  }, [clearSession])
+
+  useEffect(() => {
+    window.sessionStorage.removeItem('nexusops-access-token')
+    window.sessionStorage.removeItem('nexusops-auth-user')
+    void verifySession()
+
+    const handlePageShow = () => { void verifySession() }
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') void verifySession()
+    }
+    const handleUnauthorized = () => {
+      clearSession()
+      setIsCheckingSession(false)
+    }
+    window.addEventListener('pageshow', handlePageShow)
+    window.addEventListener('nexusops:unauthorized', handleUnauthorized)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow)
+      window.removeEventListener('nexusops:unauthorized', handleUnauthorized)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [clearSession, verifySession])
   const value = useMemo<AuthContextValue>(() => ({
     user,
     isAuthenticated: Boolean(user),
     isCheckingSession,
     login: async (username, password) => {
       const result = await readinessApi.login(username, password)
-      window.sessionStorage.setItem(USER_KEY, JSON.stringify(result.user))
       setUser(result.user)
     },
-    logout: async () => { await readinessApi.logout().catch(() => undefined); clearSession() },
-  }), [user, isCheckingSession])
+    logout: async () => {
+      clearSession()
+      await readinessApi.logout().catch(() => undefined)
+    },
+  }), [user, isCheckingSession, clearSession])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

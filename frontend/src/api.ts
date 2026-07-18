@@ -18,7 +18,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   })
   const payload = (await response.json()) as ApiResponse<T>
-  if (!response.ok) throw new Error(payload.error?.message ?? `Backend request failed: ${response.status}`)
+  if (!response.ok) {
+    if (response.status === 401) window.dispatchEvent(new Event('nexusops:unauthorized'))
+    throw new Error(payload.error?.message ?? `Backend request failed: ${response.status}`)
+  }
   return payload.data
 }
 
