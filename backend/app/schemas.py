@@ -1,7 +1,21 @@
-from datetime import datetime
-from typing import Literal
+from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from datetime import datetime
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class ApiError(BaseModel):
+    code: str
+    message: str
+    details: Any | None = None
+
+
+class ApiResponse(BaseModel):
+    data: Any = None
+    meta: dict[str, Any] = Field(default_factory=dict)
+    error: ApiError | None = None
 
 
 AgentState = Literal["done", "running", "required", "optional"]
@@ -9,17 +23,15 @@ CompanyStatus = Literal["Đã xác minh", "Đang chờ rà soát", "Từ chối"
 RiskLevel = Literal["Thấp", "Trung bình", "Cao"]
 
 
-class Agent(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class AgentView(BaseModel):
     name: str
     state: AgentState
-    confidence: int
+    confidence: int = Field(ge=0, le=100)
     result: str
 
 
 class Company(BaseModel):
-    """API contract intentionally mirrors frontend/src/data.ts."""
+    """Compatibility projection consumed by the current React frontend."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -40,24 +52,37 @@ class Company(BaseModel):
     recommendation: str
     consensus: list[str]
     objections: list[str]
-    agents: list[Agent]
+    agents: list[AgentView]
 
 
-class ApiResponse(BaseModel):
-    data: object
-    meta: dict[str, object] | None = None
+class AssessmentRun(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
 
-
-ActionStatus = Literal["PENDING_APPROVAL", "APPROVED", "REJECTED", "SUCCEEDED"]
+    run_id: str
+    case_id: str
+    input_hash: str
+    workflow_id: str
+    workflow_version: str
+    status: str
+    route: list[str]
+    critic_verdict: str
+    final_status: str
+    error_code: str | None
+    error_message: str | None
+    started_at: datetime
+    finished_at: datetime | None
 
 
 class ProposedAction(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     case_id: str
+    run_id: str
     type: str
-    payload: dict[str, object]
+    payload: dict[str, Any]
     payload_hash: str
-    status: ActionStatus
+    status: Literal["PENDING_APPROVAL", "APPROVED", "REJECTED", "SUCCEEDED"]
     created_by: str
     approved_by: str | None = None
     decided_at: datetime | None = None
@@ -69,7 +94,7 @@ class ApprovalRequest(BaseModel):
 
 
 class RejectionRequest(BaseModel):
-    reason: str
+    reason: str = Field(min_length=3, max_length=500)
 
 
 class ExecutionRecord(BaseModel):
@@ -82,6 +107,7 @@ class ExecutionRecord(BaseModel):
 
 class ResolutionPackage(BaseModel):
     case: Company
+    run: AssessmentRun
     primary_outcome: str
     blockers: list[str]
     routes: list[str]
