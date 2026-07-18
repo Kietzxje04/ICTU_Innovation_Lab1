@@ -8,8 +8,11 @@ cd backend
 ```
 
 Backend chạy tại:
+
 API: http://localhost:8000
+
 Swagger: http://localhost:8000/docs
+
 Health check: http://localhost:8000/health
 
 Terminal 2 — Frontend:
