@@ -1,9 +1,10 @@
 import {
   AlertTriangle, Bot, BrainCircuit, Check, ChevronDown, ChevronRight, CircleStop, Code2,
-  ExternalLink, FileInput, FileOutput, GitBranch, LoaderCircle, Play, RefreshCw, Route,
-  ScrollText, ShieldCheck, Sparkles, Timer, XCircle, Zap,
+  ExternalLink, FileInput, FileOutput, GitBranch, LocateFixed, LoaderCircle, Maximize2,
+  Minimize2, Minus, Play, Plus, RefreshCw, Route, ScrollText, ShieldCheck, Sparkles,
+  Timer, XCircle, Zap,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { NODE_LABELS, PRODUCT_LABELS, type AgentArtifact, type CaseContext, type EvidenceItem, type WorkflowState } from '../domain'
 import { ArtifactPill } from './Status'
@@ -147,10 +148,26 @@ export function WorkflowCanvas({ context, workflow, evidence, onRunComplete }: {
   const [elapsedMs, setElapsedMs] = useState(0)
   const [detailOpen, setDetailOpen] = useState(true)
   const [runtimeNotice, setRuntimeNotice] = useState('')
+  const [zoom, setZoom] = useState(.9)
+  const [focusMode, setFocusMode] = useState(false)
   const runToken = useRef(0)
+  const viewportRef = useRef<HTMLDivElement>(null)
   const durations = useMemo(() => computeDurations(workflow.route), [workflow.route])
 
   useEffect(() => () => { runToken.current += 1 }, [])
+  useEffect(() => {
+    if (activeIndex < 0) return
+    const viewport = viewportRef.current
+    const node = viewport?.querySelector<HTMLElement>(`[data-node-index="${activeIndex}"]`)
+    if (!viewport || !node) return
+    viewport.scrollTo({ left: Math.max(0, node.offsetLeft - viewport.clientWidth / 2 + node.offsetWidth / 2), behavior: 'smooth' })
+  }, [activeIndex])
+  useEffect(() => {
+    if (!focusMode) return
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setFocusMode(false) }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [focusMode])
   useEffect(() => {
     if (runnerStatus !== 'running') return
     const startedAt = performance.now() - elapsedMs
@@ -178,18 +195,19 @@ export function WorkflowCanvas({ context, workflow, evidence, onRunComplete }: {
   }
 
   const resetWorkflow = () => { runToken.current += 1; setRunnerStatus('idle'); setActiveIndex(-1); setCompletedCount(0); setElapsedMs(0); setRuntimeResults({}); setRuntimeNotice('') }
+  const fitWorkflow = () => { setZoom(.8); viewportRef.current?.scrollTo({ left: 0, behavior: 'smooth' }) }
   const artifact = workflow.artifacts[selectedNode]
   const citations = getNodeCitations(selectedNode, context, evidence, artifact)
   const progress = workflow.route.length ? completedCount / workflow.route.length * 100 : 0
 
-  return <section className="work-card workflow-studio">
-    <div className="workflow-studio-header"><div className="workflow-heading"><div className="workflow-logo"><Route size={18} /></div><div><h2>Visual Hybrid-Agent Workflow</h2><p>Nghiệp vụ, AI và khâu kiểm soát chạy theo route của hồ sơ</p></div></div><div className="runner-toolbar"><span className={`runner-state ${runnerStatus}`}><i />{runnerStatus === 'idle' ? 'Sẵn sàng' : runnerStatus === 'running' ? 'Đang thực thi' : 'Đã hoàn tất'}</span><span className="runner-time"><Timer size={13} />{(elapsedMs / 1000).toFixed(1)}s / 12.0s</span>{runnerStatus === 'completed' && <button className="runner-reset" onClick={resetWorkflow}><RefreshCw size={14} /> Đặt lại</button>}<button className="runner-play" disabled={runnerStatus === 'running'} onClick={runWorkflow}>{runnerStatus === 'running' ? <LoaderCircle className="spin" size={15} /> : <Play size={15} fill="currentColor" />}{runnerStatus === 'completed' ? 'Chạy lại' : runnerStatus === 'running' ? 'Đang chạy...' : 'Chạy workflow'}</button></div></div>
+  return <section className={`work-card workflow-studio ${focusMode ? 'focus-mode' : ''}`}>
+    <div className="workflow-studio-header"><div className="workflow-heading"><div className="workflow-logo"><Route size={18} /></div><div><h2>Visual Hybrid-Agent Workflow</h2><p>Nghiệp vụ, AI và khâu kiểm soát chạy theo route của hồ sơ</p></div></div><div className="runner-toolbar"><span className={`runner-state ${runnerStatus}`}><i />{runnerStatus === 'idle' ? 'Sẵn sàng' : runnerStatus === 'running' ? 'Đang thực thi' : 'Đã hoàn tất'}</span><span className="runner-time"><Timer size={13} />{(elapsedMs / 1000).toFixed(1)}s / 12.0s</span><div className="canvas-controls"><button onClick={() => setZoom((value) => Math.max(.65, value - .1))} aria-label="Thu nhỏ"><Minus size={13} /></button><span>{Math.round(zoom * 100)}%</span><button onClick={() => setZoom((value) => Math.min(1.2, value + .1))} aria-label="Phóng to"><Plus size={13} /></button><button onClick={fitWorkflow} aria-label="Vừa khung"><LocateFixed size={13} /></button><button onClick={() => setFocusMode((value) => !value)} aria-label="Chế độ tập trung">{focusMode ? <Minimize2 size={13} /> : <Maximize2 size={13} />}</button></div>{runnerStatus === 'completed' && <button className="runner-reset" onClick={resetWorkflow}><RefreshCw size={14} /> Đặt lại</button>}<button className="runner-play" disabled={runnerStatus === 'running'} onClick={runWorkflow}>{runnerStatus === 'running' ? <LoaderCircle className="spin" size={15} /> : <Play size={15} fill="currentColor" />}{runnerStatus === 'completed' ? 'Chạy lại' : runnerStatus === 'running' ? 'Đang chạy...' : 'Chạy workflow'}</button></div></div>
     <div className="runner-progress"><i style={{ width: `${progress}%` }} /></div>
     {runtimeNotice && <div className={`runtime-notice ${Object.values(runtimeResults).includes('error') ? 'error' : 'warning'}`}>{Object.values(runtimeResults).includes('error') ? <XCircle size={15} /> : <AlertTriangle size={15} />}<span>{runtimeNotice}</span></div>}
     <div className="workflow-legend"><span><i className="business" /> Nghiệp vụ</span><span><i className="ai" /> AI / RAG</span><span><i className="control" /> Kiểm soát an toàn</span><small>Chọn node để xem dữ liệu và trích dẫn</small></div>
-    <div className="workflow-canvas-viewport"><div className="workflow-canvas-grid" /><div className="visual-pipeline"><div className={`terminal-node start ${runnerStatus !== 'idle' ? 'completed' : ''}`}><span><Zap size={15} /></span><strong>Tiếp nhận hồ sơ</strong><small>Kích hoạt quy trình</small></div>{workflow.route.map((node, index) => {
+    <div className="workflow-canvas-viewport" ref={viewportRef}><div className="workflow-canvas-grid" /><div className="visual-pipeline" style={{ zoom } as CSSProperties}><div className={`terminal-node start ${runnerStatus !== 'idle' ? 'completed' : ''}`}><span><Zap size={15} /></span><strong>Tiếp nhận hồ sơ</strong><small>Kích hoạt quy trình</small></div>{workflow.route.map((node, index) => {
       const kind = getNodeKind(node); const isRunning = runnerStatus === 'running' && activeIndex === index; const isCompleted = completedCount > index; const isWaiting = runnerStatus === 'running' && activeIndex < index; const result = runtimeResults[node]; const NodeIcon = kind === 'ai' ? BrainCircuit : kind === 'control' ? ShieldCheck : GitBranch
-      return <div className="pipeline-segment" key={node}><div className={`workflow-edge ${isRunning || isCompleted ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${result ?? ''}`}><span /><i /></div><button onClick={() => { setSelectedNode(node); setDetailOpen(true) }} className={`visual-node ${kind} ${isRunning ? 'running' : ''} ${isCompleted ? 'completed' : ''} ${result ?? ''} ${isWaiting ? 'waiting' : ''} ${selectedNode === node ? 'selected' : ''}`}><i className="port input-port" /><div className="node-top"><span className="node-icon">{isRunning ? <LoaderCircle className="spin" size={16} /> : result === 'error' ? <XCircle size={16} /> : result === 'warning' ? <AlertTriangle size={16} /> : isCompleted ? <Check size={16} /> : <NodeIcon size={16} />}</span><span className="node-kind">{kind === 'ai' ? 'AI AGENT' : kind === 'control' ? 'KIỂM SOÁT' : 'NGHIỆP VỤ'}</span><ChevronRight size={13} /></div><strong>{NODE_LABELS[node] ?? node}</strong><small>{workflow.artifacts[node]?.engine ?? 'DETERMINISTIC'}</small><div className="node-footer"><span>{isRunning ? 'Đang xử lý...' : result === 'error' ? 'Lỗi nghiệp vụ' : result === 'warning' ? 'Cần rà soát' : isCompleted ? 'Hoàn thành' : 'Chờ chạy'}</span>{AI_NODES.has(node) && <Sparkles size={11} />}</div><i className="port output-port" /></button></div>
+      return <div className="pipeline-segment" key={node} data-node-index={index}><div className={`workflow-edge ${isRunning || isCompleted ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${result ?? ''}`}><span /><i /></div><button onClick={() => { setSelectedNode(node); setDetailOpen(true) }} className={`visual-node ${kind} ${isRunning ? 'running' : ''} ${isCompleted ? 'completed' : ''} ${result ?? ''} ${isWaiting ? 'waiting' : ''} ${selectedNode === node ? 'selected' : ''}`}><i className="port input-port" /><div className="node-top"><span className="node-icon">{isRunning ? <LoaderCircle className="spin" size={16} /> : result === 'error' ? <XCircle size={16} /> : result === 'warning' ? <AlertTriangle size={16} /> : isCompleted ? <Check size={16} /> : <NodeIcon size={16} />}</span><span className="node-kind">{kind === 'ai' ? 'AI AGENT' : kind === 'control' ? 'KIỂM SOÁT' : 'NGHIỆP VỤ'}</span><ChevronRight size={13} /></div><strong>{NODE_LABELS[node] ?? node}</strong><small>{workflow.artifacts[node]?.engine ?? 'DETERMINISTIC'}</small><div className="node-footer"><span>{isRunning ? 'Đang xử lý...' : result === 'error' ? 'Lỗi nghiệp vụ' : result === 'warning' ? 'Cần rà soát' : isCompleted ? 'Hoàn thành' : 'Chờ chạy'}</span>{AI_NODES.has(node) && <Sparkles size={11} />}</div><i className="port output-port" /></button></div>
     })}<div className="pipeline-segment"><div className={`workflow-edge ${runnerStatus === 'completed' ? 'active completed' : ''}`}><span /><i /></div><div className={`terminal-node end ${runnerStatus === 'completed' ? 'completed' : ''} ${workflow.final_status === 'BLOCKED' ? 'blocked' : ''}`}><span>{workflow.final_status === 'BLOCKED' && runnerStatus === 'completed' ? <XCircle size={15} /> : runnerStatus === 'completed' ? <Check size={15} /> : <CircleStop size={15} />}</span><strong>Chuyển nhân viên</strong><small>{VALUE_LABELS[workflow.final_status] ?? workflow.final_status}</small></div></div></div></div>
     <div className={`node-inspector ${detailOpen ? 'open' : ''}`}><button className="inspector-toggle" onClick={() => setDetailOpen((current) => !current)}><div><Code2 size={15} /><span>Chi tiết khâu xử lý</span><strong>{NODE_LABELS[selectedNode] ?? selectedNode}</strong></div><ChevronDown size={16} /></button>{detailOpen && <div className="inspector-content"><div className="inspector-summary"><div className={`inspector-icon ${getNodeKind(selectedNode)}`}>{getNodeKind(selectedNode) === 'ai' ? <Bot size={19} /> : getNodeKind(selectedNode) === 'control' ? <ShieldCheck size={19} /> : <GitBranch size={19} />}</div><div><div><span>{getNodeKind(selectedNode) === 'ai' ? 'KHÂU AI / RAG' : getNodeKind(selectedNode) === 'control' ? 'KHÂU KIỂM SOÁT' : 'KHÂU NGHIỆP VỤ'}</span>{artifact && <ArtifactPill status={artifact.status} />}</div><h3>{NODE_LABELS[selectedNode] ?? selectedNode}</h3><p>{getNodeDescription(selectedNode)}</p></div></div><div className="human-io-grid"><HumanDataPanel title="Dữ liệu được sử dụng" icon={<FileInput size={15} />} data={getNodeInput(selectedNode, context, workflow)} /><div className="io-arrow"><ChevronRight size={18} /></div><HumanDataPanel title="Kết quả của khâu" icon={<FileOutput size={15} />} data={getNodeOutput(selectedNode, artifact, workflow)} tone="output" /></div><aside className="node-citations"><div className="citation-heading"><ScrollText size={15} /><div><strong>Trích dẫn và nguồn</strong><span>Mở trang căn cứ đầy đủ</span></div></div>{citations.map((citation) => <Link key={citation.id} className={citation.issue ? 'has-issue' : ''} to={`/citations/${context.case_id}/${encodeURIComponent(citation.id)}`} state={{ issueTarget: citation.target }}><div><span>{citation.source}</span>{citation.issue && <b><AlertTriangle size={10} /> Có vấn đề</b>}</div><blockquote>“{citation.quote}”</blockquote><small>{citation.reference}<ExternalLink size={10} /></small></Link>)}</aside></div>}</div>
   </section>
