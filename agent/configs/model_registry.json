@@ -1,0 +1,8 @@
+{
+  "engines": [
+    {"name": "rules", "kind": "DETERMINISTIC", "enabled": true},
+    {"name": "local_extractor", "kind": "LOCAL_LLM", "model": "qwen2.5:3b", "enabled": false},
+    {"name": "cloud_reasoner", "kind": "CLOUD_LLM", "model": null, "enabled": false},
+    {"name": "mandatory_critic", "kind": "CLOUD_LLM", "model": null, "enabled": false}
+  ]
+}

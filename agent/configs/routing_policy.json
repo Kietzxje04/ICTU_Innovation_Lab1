@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "rules": [
+    {"when": "product=CORPORATE_OVERDRAFT", "add": ["ACCOUNT_TURNOVER", "CREDIT_AGENT"]},
+    {"when": "product=WORKING_CAPITAL", "add": ["FINANCIAL_METRICS", "TAX_CONSISTENCY", "CREDIT_AGENT"]},
+    {"when": "kyc_aml_flags>0", "add": ["COMPLIANCE_AGENT"]}
+  ],
+  "mandatory_tail": ["MANDATORY_CRITIC", "CITATION_VALIDATOR", "POLICY_GATE"],
+  "max_rework": 1
+}

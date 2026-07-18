@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.env
+runtime/indexes/*
+!runtime/indexes/.gitkeep
+runtime/traces/*
+!runtime/traces/.gitkeep
