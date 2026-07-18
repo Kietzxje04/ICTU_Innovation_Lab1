@@ -1,26 +1,30 @@
-Mở 2 terminal tại thư mục chứa 
+# NexusOps AI
 
-Terminal 1 — Backend:
+Hệ thống gồm React frontend, FastAPI backend và NexusOps Agent Layer.
 
-```bash
-cd backend
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+## 1. Chạy backend
+
+Lần đầu:
+
+```powershell
+cd D:\D\abc\backend
+py -3.13 -m venv .venv313
+.\.venv313\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-Backend chạy tại:
+Mỗi lần chạy:
 
-API: http://localhost:8000
+```powershell
+cd D:\D\abc\backend
+.\.venv313\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+```
 
-Swagger: http://localhost:8000/docs
+## 2. Chạy frontend
 
-Health check: http://localhost:8000/health
-
-Terminal 2 — Frontend:
-
-```bash
-cd frontend
+```powershell
+cd D:\D\abc\frontend
+npm.cmd install
 npm.cmd run dev
 ```
 
-Sau đó mở địa chỉ Vite hiển thị trong terminal, thường là:
-http://localhost:5173
+Mở http://localhost:5173. Swagger API ở http://localhost:8000/docs.
