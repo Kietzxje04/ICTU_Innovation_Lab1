@@ -76,14 +76,24 @@ export interface EvidenceItem {
   document_id: string
   document_number: string
   document_title: string
-  domain: 'AML' | 'LENDING' | 'DEMO_POLICY' | 'QUARANTINE'
+  domain: 'CASE_DATA' | 'AML' | 'LENDING' | 'DEMO_POLICY' | 'QUARANTINE'
+  source_type: 'CASE_RECORD' | 'INTERNAL_POLICY' | 'REGULATION' | 'DEMO_CONTENT'
   source_authority: string
   validity_status: string
+  effective_date: string
+  article?: string
+  clause?: string
+  page_or_part?: string
   citation_text: string
+  full_content: string
+  evaluation_basis: string
   content_hash: string
   quality_status: 'ACCEPTED' | 'REVIEW_REQUIRED' | 'DEMO_ONLY' | 'REJECTED'
   validation: CitationValidationStatus
   reasons: string[]
+  related_nodes: string[]
+  case_field_refs: string[]
+  provenance: Record<string, string>
 }
 
 export interface ReadinessCase {
@@ -142,5 +152,7 @@ export function getRouteReasons(context: CaseContext) {
   }
   if (context.kyc_aml_flags.length) reasons.push('KYC_AML_TRIGGER')
   if (context.cic_bad_debt) reasons.push('CIC_BAD_DEBT')
+  if ((context.pretax_profit_last_2_years.at(-1) ?? 0) < 0) reasons.push('NEGATIVE_PRETAX_PROFIT')
+  if (context.metadata.turnover_alert === 'true') reasons.push('LOW_ACCOUNT_TURNOVER')
   return reasons
 }

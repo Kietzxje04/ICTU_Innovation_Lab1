@@ -4,6 +4,7 @@ import { CaseDetailPage } from './pages/CaseDetailPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { NewCasePage } from './pages/NewCasePage'
 import { TracePage } from './pages/TracePage'
+import { CitationDetailPage, CitationLibraryPage } from './pages/CitationPages'
 import { ReadinessProvider } from './readiness-context'
 
 export default function App() {
@@ -12,6 +13,8 @@ export default function App() {
     <Route path="/cases/new" element={<NewCasePage />} />
     <Route path="/cases/:caseId" element={<CaseDetailPage />} />
     <Route path="/trace" element={<TracePage />} />
+    <Route path="/citations/:caseId" element={<CitationLibraryPage />} />
+    <Route path="/citations/:caseId/:chunkId" element={<CitationDetailPage />} />
     <Route path="*" element={<DashboardPage />} />
   </Routes></Layout></ReadinessProvider>
 }

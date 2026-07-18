@@ -1,16 +1,43 @@
 import {
-  Bot, BrainCircuit, Check, ChevronDown, ChevronRight, CircleStop, Code2, FileJson,
-  GitBranch, LoaderCircle, Play, RefreshCw, Route, ShieldCheck, Sparkles, Timer, Zap,
+  AlertTriangle, Bot, BrainCircuit, Check, ChevronDown, ChevronRight, CircleStop, Code2,
+  ExternalLink, FileInput, FileOutput, GitBranch, LoaderCircle, Play, RefreshCw, Route,
+  ScrollText, ShieldCheck, Sparkles, Timer, XCircle, Zap,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { NODE_LABELS, type AgentArtifact, type CaseContext, type WorkflowState } from '../domain'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
+import { NODE_LABELS, PRODUCT_LABELS, type AgentArtifact, type CaseContext, type EvidenceItem, type WorkflowState } from '../domain'
 import { ArtifactPill } from './Status'
 
 type RunnerStatus = 'idle' | 'running' | 'completed'
 type NodeKind = 'business' | 'ai' | 'control'
+type RuntimeResult = 'success' | 'warning' | 'error'
 
 const AI_NODES = new Set(['PRODUCT_AGENT', 'CREDIT_AGENT', 'COMPLIANCE_AGENT', 'MANDATORY_CRITIC'])
 const CONTROL_NODES = new Set(['READINESS_RULE_ENGINE', 'CITATION_VALIDATOR', 'POLICY_GATE'])
+
+const FIELD_LABELS: Record<string, string> = {
+  case_id: 'Mã hồ sơ', customer_id: 'Mã khách hàng', product: 'Sản phẩm', existing_customer: 'Khách hàng hiện hữu',
+  relationship_months: 'Thời gian quan hệ', requested_amount: 'Số tiền đề nghị', metadata: 'Thông tin bổ sung',
+  required_documents: 'Tài liệu bắt buộc', submitted_documents: 'Tài liệu đã nộp', source: 'Nguồn dữ liệu',
+  annual_revenue: 'Doanh thu năm', pretax_profit_last_2_years: 'Lợi nhuận trước thuế 2 năm', tax_declared_revenue: 'Doanh thu khai thuế',
+  cic_bad_debt: 'Cờ nợ xấu CIC', upstream_artifacts: 'Kết quả đầu vào liên quan', kyc_aml_flags: 'Cảnh báo KYC/AML', rag_namespace: 'Kho tri thức sử dụng',
+  route: 'Quy trình xử lý', artifact_statuses: 'Trạng thái các khâu', artifacts_to_review: 'Các khâu cần Critic rà soát', max_rework: 'Số lần làm lại tối đa',
+  citation_ids: 'Mã trích dẫn', checks: 'Các bước kiểm chứng', critic_verdict: 'Kết luận của Critic', citation_results: 'Kết quả kiểm chứng trích dẫn',
+  final_status: 'Trạng thái readiness cuối', handoff: 'Bước chuyển tiếp', agent_id: 'Khâu xử lý', engine: 'Cơ chế xử lý', status: 'Trạng thái', summary: 'Kết luận dễ hiểu',
+  claims: 'Các nhận định có dẫn chứng', metrics: 'Chỉ số tính toán', warnings: 'Vấn đề phát hiện', proposed_actions: 'Hành động đề xuất', raw: 'Dữ liệu kỹ thuật mở rộng',
+  completeness_ratio: 'Tỷ lệ đầy đủ hồ sơ', average_monthly_turnover: 'Vòng quay trung bình tháng', latest_pretax_profit: 'Lợi nhuận gần nhất', tax_gap_ratio: 'Tỷ lệ chênh lệch thuế',
+  validation_results: 'Kết quả xác thực nguồn', document_id: 'Mã tài liệu', chunk_id: 'Đoạn bằng chứng', claim_id: 'Mã nhận định', quote: 'Nội dung trích dẫn', claim_type: 'Loại nhận định',
+}
+
+const VALUE_LABELS: Record<string, string> = {
+  CORPORATE_OVERDRAFT: 'Thấu chi doanh nghiệp', WORKING_CAPITAL: 'Vốn lưu động', PASS: 'Đạt', WARNING: 'Có cảnh báo', BLOCKED: 'Bị chặn', REVIEW_REQUIRED: 'Cần nhân viên rà soát',
+  READY_FOR_HUMAN_REVIEW: 'Sẵn sàng chuyển nhân viên rà soát', NEEDS_MORE_EVIDENCE: 'Cần bổ sung bằng chứng', IN_PROGRESS: 'Đang xử lý',
+  REVISE: 'Cần chỉnh sửa', ESCALATE: 'Chuyển cấp chuyên môn', PENDING: 'Đang chờ', DETERMINISTIC: 'Luật xử lý cố định', DETERMINISTIC_PLUS_LLM: 'Luật định kết hợp AI', RULES_PLUS_RAG: 'Luật định kết hợp kho tri thức',
+  CLOUD_LLM_STRUCTURED: 'AI đám mây có cấu trúc', LOCAL_LLM_OR_DETERMINISTIC: 'AI nội bộ hoặc luật định', CLOUD_LLM: 'AI đám mây',
+  HUMAN_REVIEW: 'Chuyển nhân viên phụ trách', VALID: 'Trích dẫn hợp lệ', WARNING_DEMO_ONLY: 'Nguồn chỉ dùng cho demo',
+  exact_quote: 'Kiểm tra nguyên văn', content_hash: 'Kiểm tra toàn vẹn nội dung', authority: 'Kiểm tra thẩm quyền nguồn', validity: 'Kiểm tra hiệu lực',
+  core_banking_mock: 'Dữ liệu Core Banking mô phỏng', AML: 'Kho tri thức phòng chống rửa tiền',
+}
 
 function getNodeKind(node: string): NodeKind {
   if (AI_NODES.has(node)) return 'ai'
@@ -20,20 +47,14 @@ function getNodeKind(node: string): NodeKind {
 
 function getNodeDescription(node: string) {
   const descriptions: Record<string, string> = {
-    EXISTING_CUSTOMER_GATE: 'Xác nhận phạm vi khách hàng hiện hữu trước khi phân tích.',
-    PRODUCT_AGENT: 'AI xác định đặc tính sản phẩm và các điều kiện cần đánh giá.',
-    DOCUMENT_COMPLETENESS: 'Đối chiếu tài liệu đã nộp với danh mục bắt buộc.',
-    ACCOUNT_TURNOVER: 'Tính toán vòng quay và mức độ ổn định của dòng tiền tài khoản.',
-    FINANCIAL_METRICS: 'Tổng hợp doanh thu và xu hướng lợi nhuận hai năm.',
-    TAX_CONSISTENCY: 'Đối chiếu doanh thu báo cáo với doanh thu khai thuế.',
-    CREDIT_AGENT: 'AI tổng hợp tín hiệu tín dụng và điểm cần cán bộ rà soát.',
-    COMPLIANCE_AGENT: 'AI/RAG đánh giá các cờ KYC và AML được kích hoạt.',
-    READINESS_RULE_ENGINE: 'Áp dụng các quy tắc readiness xác định blocker và evidence gap.',
-    MANDATORY_CRITIC: 'AI Critic tìm mâu thuẫn, thiếu sót và yêu cầu rework khi cần.',
-    CITATION_VALIDATOR: 'Kiểm tra quote, hash, authority và trạng thái hiệu lực của bằng chứng.',
-    POLICY_GATE: 'Chốt trạng thái readiness và đề xuất bước Human-in-the-loop.',
+    EXISTING_CUSTOMER_GATE: 'Xác nhận khách hàng có nằm trong phạm vi xử lý trước khi phân tích.', PRODUCT_AGENT: 'AI xác định sản phẩm và các điều kiện cần kiểm tra.',
+    DOCUMENT_COMPLETENESS: 'Đối chiếu tài liệu đã nộp với danh mục bắt buộc.', ACCOUNT_TURNOVER: 'Đánh giá mức độ ổn định của dòng tiền tài khoản.',
+    FINANCIAL_METRICS: 'Tổng hợp doanh thu và xu hướng lợi nhuận hai năm.', TAX_CONSISTENCY: 'Đối chiếu doanh thu báo cáo với doanh thu khai thuế.',
+    CREDIT_AGENT: 'AI tổng hợp tín hiệu tín dụng và điểm cần nhân viên rà soát.', COMPLIANCE_AGENT: 'AI kết hợp RAG đánh giá các cờ KYC và AML.',
+    READINESS_RULE_ENGINE: 'Áp dụng quy tắc để tìm điều kiện chặn và bằng chứng còn thiếu.', MANDATORY_CRITIC: 'AI Critic tìm mâu thuẫn, thiếu sót và yêu cầu làm lại khi cần.',
+    CITATION_VALIDATOR: 'Kiểm tra nguyên văn, tính toàn vẹn, thẩm quyền và hiệu lực nguồn.', POLICY_GATE: 'Chốt trạng thái readiness và đề xuất bước Human-in-the-loop.',
   }
-  return descriptions[node] ?? 'Xử lý một bước trong hybrid-agent workflow.'
+  return descriptions[node] ?? 'Xử lý một bước trong quy trình hybrid-agent.'
 }
 
 function getNodeInput(node: string, context: CaseContext, workflow: WorkflowState) {
@@ -57,8 +78,56 @@ function getNodeInput(node: string, context: CaseContext, workflow: WorkflowStat
 
 function getNodeOutput(node: string, artifact: AgentArtifact | undefined, workflow: WorkflowState) {
   if (node === 'POLICY_GATE') return { final_status: workflow.final_status, critic_verdict: workflow.critic_verdict, handoff: 'HUMAN_REVIEW' }
-  if (node === 'CITATION_VALIDATOR') return { validation_results: workflow.citation_results, artifact }
-  return artifact ?? { status: 'PASS', summary: `${node} completed`, metrics: {}, warnings: [] }
+  if (node === 'CITATION_VALIDATOR') return { validation_results: workflow.citation_results, status: artifact?.status, summary: artifact?.summary }
+  if (!artifact) return { status: 'PASS', summary: 'Khâu xử lý đã hoàn tất.' }
+  return { status: artifact.status, summary: artifact.summary, metrics: artifact.metrics, warnings: artifact.warnings, proposed_actions: artifact.proposed_actions }
+}
+
+function formatPrimitive(field: string, value: string | number | boolean | null) {
+  if (value === null) return 'Chưa có dữ liệu'
+  if (typeof value === 'boolean') return value ? 'Có' : 'Không'
+  if (typeof value === 'number') {
+    if (field.includes('ratio')) return `${(value * 100).toFixed(1)}%`
+    if (field.includes('amount') || field.includes('revenue') || field.includes('profit') || field.includes('turnover')) return `${new Intl.NumberFormat('vi-VN').format(value)} ₫`
+    if (field === 'relationship_months') return `${value} tháng`
+    return new Intl.NumberFormat('vi-VN').format(value)
+  }
+  return VALUE_LABELS[value] ?? NODE_LABELS[value] ?? PRODUCT_LABELS[value as keyof typeof PRODUCT_LABELS] ?? value.replaceAll('_', ' ')
+}
+
+function ReadableValue({ field, value }: { field: string; value: unknown }): ReactNode {
+  if (Array.isArray(value)) return value.length ? <div className="readable-list">{value.map((item, index) => <span key={`${String(item)}-${index}`}>{typeof item === 'object' ? JSON.stringify(item) : formatPrimitive(field, item as string | number | boolean)}</span>)}</div> : <em>Không có</em>
+  if (value && typeof value === 'object') return <div className="readable-object">{Object.entries(value as Record<string, unknown>).map(([key, child]) => <div key={key}><small>{FIELD_LABELS[key] ?? key.replaceAll('_', ' ')}</small><ReadableValue field={key} value={child} /></div>)}</div>
+  return <strong>{formatPrimitive(field, value as string | number | boolean | null)}</strong>
+}
+
+function HumanDataPanel({ title, icon, data, tone }: { title: string; icon: ReactNode; data: Record<string, unknown>; tone?: 'output' }) {
+  return <section className={`human-data-panel ${tone ?? ''}`}><div className="human-panel-title">{icon}<div><strong>{title}</strong><span>Diễn giải cho nhân viên nghiệp vụ</span></div></div><div className="human-fields">{Object.entries(data).map(([field, value]) => <div className="human-field" key={field}><label>{FIELD_LABELS[field] ?? field.replaceAll('_', ' ')}</label><ReadableValue field={field} value={value} /></div>)}</div></section>
+}
+
+function getIssueTarget(node: string) {
+  if (node === 'EXISTING_CUSTOMER_GATE' || node === 'PRODUCT_AGENT') return 'issue-customer'
+  if (node === 'DOCUMENT_COMPLETENESS') return 'issue-documents'
+  if (['ACCOUNT_TURNOVER', 'FINANCIAL_METRICS', 'TAX_CONSISTENCY'].includes(node)) return 'issue-financial'
+  if (['CREDIT_AGENT', 'COMPLIANCE_AGENT', 'READINESS_RULE_ENGINE', 'MANDATORY_CRITIC'].includes(node)) return 'issue-artifacts'
+  if (node === 'CITATION_VALIDATOR') return 'issue-evidence'
+  return 'issue-hitl'
+}
+
+function getNodeCitations(node: string, context: CaseContext, evidence: EvidenceItem[], artifact?: AgentArtifact) {
+  const dataSource = evidence.find((item) => item.domain === 'CASE_DATA')
+  const policyDocument = node === 'COMPLIANCE_AGENT' ? 'AML-POLICY-2026'
+    : ['FINANCIAL_METRICS', 'TAX_CONSISTENCY'].includes(node) ? 'SME-TAX-GUIDE'
+    : ['ACCOUNT_TURNOVER', 'CREDIT_AGENT'].includes(node) ? 'CREDIT-RISK-GATE'
+    : ['READINESS_RULE_ENGINE', 'MANDATORY_CRITIC'].includes(node) ? 'SME-POLICY-V31'
+    : ['CITATION_VALIDATOR', 'POLICY_GATE', 'PRODUCT_AGENT'].includes(node) ? 'DEMO-GUIDE'
+    : 'SME-POLICY-V31'
+  const policySource = evidence.find((item) => item.document_id === policyDocument) ?? evidence.find((item) => item.domain === 'LENDING')
+  const target = getIssueTarget(node)
+  return [dataSource, policySource].filter((item, index, items): item is EvidenceItem => Boolean(item) && items.findIndex((candidate) => candidate?.chunk_id === item?.chunk_id) === index).map((item) => ({
+    id: item.chunk_id, source: item.document_title, reference: item.document_number, quote: item.citation_text, target,
+    issue: Boolean(artifact && artifact.status !== 'PASS'),
+  }))
 }
 
 function computeDurations(route: string[], totalMs = 12_000) {
@@ -69,13 +138,15 @@ function computeDurations(route: string[], totalMs = 12_000) {
 
 const delay = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds))
 
-export function WorkflowCanvas({ context, workflow }: { context: CaseContext; workflow: WorkflowState }) {
+export function WorkflowCanvas({ context, workflow, evidence }: { context: CaseContext; workflow: WorkflowState; evidence: EvidenceItem[] }) {
   const [runnerStatus, setRunnerStatus] = useState<RunnerStatus>('idle')
   const [activeIndex, setActiveIndex] = useState(-1)
   const [completedCount, setCompletedCount] = useState(0)
+  const [runtimeResults, setRuntimeResults] = useState<Record<string, RuntimeResult>>({})
   const [selectedNode, setSelectedNode] = useState(workflow.route[0])
   const [elapsedMs, setElapsedMs] = useState(0)
   const [detailOpen, setDetailOpen] = useState(true)
+  const [runtimeNotice, setRuntimeNotice] = useState('')
   const runToken = useRef(0)
   const durations = useMemo(() => computeDurations(workflow.route), [workflow.route])
 
@@ -89,75 +160,37 @@ export function WorkflowCanvas({ context, workflow }: { context: CaseContext; wo
 
   const runWorkflow = async () => {
     const token = ++runToken.current
-    setRunnerStatus('running')
-    setActiveIndex(0)
-    setCompletedCount(0)
-    setElapsedMs(0)
+    setRunnerStatus('running'); setActiveIndex(0); setCompletedCount(0); setElapsedMs(0); setRuntimeResults({}); setRuntimeNotice('')
     for (let index = 0; index < workflow.route.length; index += 1) {
       if (token !== runToken.current) return
-      setActiveIndex(index)
-      setSelectedNode(workflow.route[index])
-      setDetailOpen(true)
+      const node = workflow.route[index]
+      setActiveIndex(index); setSelectedNode(node); setDetailOpen(true)
       await delay(durations[index])
       if (token !== runToken.current) return
+      const status = workflow.artifacts[node]?.status ?? 'PASS'
+      const result: RuntimeResult = status === 'BLOCKED' ? 'error' : status === 'WARNING' || status === 'REVIEW_REQUIRED' ? 'warning' : 'success'
+      setRuntimeResults((current) => ({ ...current, [node]: result }))
+      if (result === 'error') setRuntimeNotice(`${NODE_LABELS[node] ?? node} phát hiện lỗi chặn. Workflow vẫn chạy Mandatory Critic và Policy Gate để tạo hướng xử lý an toàn.`)
+      else if (result === 'warning') setRuntimeNotice((current) => current.includes('lỗi chặn') ? current : `${NODE_LABELS[node] ?? node} phát hiện điểm cần rà soát. Vấn đề được chuyển tiếp sang các khâu kiểm soát.`)
       setCompletedCount(index + 1)
     }
-    setActiveIndex(-1)
-    setElapsedMs(durations.reduce((sum, value) => sum + value, 0))
-    setRunnerStatus('completed')
+    setActiveIndex(-1); setElapsedMs(durations.reduce((sum, value) => sum + value, 0)); setRunnerStatus('completed')
   }
 
-  const resetWorkflow = () => {
-    runToken.current += 1
-    setRunnerStatus('idle')
-    setActiveIndex(-1)
-    setCompletedCount(0)
-    setElapsedMs(0)
-  }
-
+  const resetWorkflow = () => { runToken.current += 1; setRunnerStatus('idle'); setActiveIndex(-1); setCompletedCount(0); setElapsedMs(0); setRuntimeResults({}); setRuntimeNotice('') }
   const artifact = workflow.artifacts[selectedNode]
+  const citations = getNodeCitations(selectedNode, context, evidence, artifact)
   const progress = workflow.route.length ? completedCount / workflow.route.length * 100 : 0
 
   return <section className="work-card workflow-studio">
-    <div className="workflow-studio-header">
-      <div className="workflow-heading"><div className="workflow-logo"><Route size={18} /></div><div><h2>Visual Hybrid-Agent Workflow</h2><p>Business rules và AI agents chạy tuần tự theo route của hồ sơ</p></div></div>
-      <div className="runner-toolbar"><span className={`runner-state ${runnerStatus}`}><i />{runnerStatus === 'idle' ? 'Sẵn sàng' : runnerStatus === 'running' ? 'Đang thực thi' : 'Đã hoàn tất'}</span><span className="runner-time"><Timer size={13} />{(elapsedMs / 1000).toFixed(1)}s / 12.0s</span>{runnerStatus === 'completed' && <button className="runner-reset" onClick={resetWorkflow}><RefreshCw size={14} /> Reset</button>}<button className="runner-play" disabled={runnerStatus === 'running'} onClick={runWorkflow}>{runnerStatus === 'running' ? <LoaderCircle className="spin" size={15} /> : <Play size={15} fill="currentColor" />}{runnerStatus === 'completed' ? 'Chạy lại' : runnerStatus === 'running' ? 'Đang chạy...' : 'Chạy workflow'}</button></div>
-    </div>
+    <div className="workflow-studio-header"><div className="workflow-heading"><div className="workflow-logo"><Route size={18} /></div><div><h2>Visual Hybrid-Agent Workflow</h2><p>Nghiệp vụ, AI và khâu kiểm soát chạy theo route của hồ sơ</p></div></div><div className="runner-toolbar"><span className={`runner-state ${runnerStatus}`}><i />{runnerStatus === 'idle' ? 'Sẵn sàng' : runnerStatus === 'running' ? 'Đang thực thi' : 'Đã hoàn tất'}</span><span className="runner-time"><Timer size={13} />{(elapsedMs / 1000).toFixed(1)}s / 12.0s</span>{runnerStatus === 'completed' && <button className="runner-reset" onClick={resetWorkflow}><RefreshCw size={14} /> Đặt lại</button>}<button className="runner-play" disabled={runnerStatus === 'running'} onClick={runWorkflow}>{runnerStatus === 'running' ? <LoaderCircle className="spin" size={15} /> : <Play size={15} fill="currentColor" />}{runnerStatus === 'completed' ? 'Chạy lại' : runnerStatus === 'running' ? 'Đang chạy...' : 'Chạy workflow'}</button></div></div>
     <div className="runner-progress"><i style={{ width: `${progress}%` }} /></div>
-    <div className="workflow-legend"><span><i className="business" /> Nghiệp vụ</span><span><i className="ai" /> AI / RAG</span><span><i className="control" /> Control & Safety</span><small>Click node để xem Input / Output</small></div>
-    <div className="workflow-canvas-viewport">
-      <div className="workflow-canvas-grid" />
-      <div className="visual-pipeline">
-        <div className={`terminal-node start ${runnerStatus !== 'idle' ? 'completed' : ''}`}><span><Zap size={15} /></span><strong>Case Intake</strong><small>Trigger</small></div>
-        {workflow.route.map((node, index) => {
-          const kind = getNodeKind(node)
-          const isRunning = runnerStatus === 'running' && activeIndex === index
-          const isCompleted = completedCount > index
-          const isWaiting = runnerStatus === 'running' && activeIndex < index
-          const NodeIcon = kind === 'ai' ? BrainCircuit : kind === 'control' ? ShieldCheck : GitBranch
-          return <div className="pipeline-segment" key={node}>
-            <div className={`workflow-edge ${isRunning || isCompleted ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}><span /><i /></div>
-            <button onClick={() => { setSelectedNode(node); setDetailOpen(true) }} className={`visual-node ${kind} ${isRunning ? 'running' : ''} ${isCompleted ? 'completed' : ''} ${isWaiting ? 'waiting' : ''} ${selectedNode === node ? 'selected' : ''}`}>
-              <i className="port input-port" />
-              <div className="node-top"><span className="node-icon">{isRunning ? <LoaderCircle className="spin" size={16} /> : isCompleted ? <Check size={16} /> : <NodeIcon size={16} />}</span><span className="node-kind">{kind === 'ai' ? 'AI AGENT' : kind === 'control' ? 'CONTROL' : 'BUSINESS'}</span><ChevronRight size={13} /></div>
-              <strong>{NODE_LABELS[node] ?? node}</strong>
-              <small>{workflow.artifacts[node]?.engine ?? 'DETERMINISTIC'}</small>
-              <div className="node-footer"><span>{isRunning ? 'Processing...' : isCompleted ? `${durations[index]} ms` : 'Waiting'}</span>{AI_NODES.has(node) && <Sparkles size={11} />}</div>
-              <i className="port output-port" />
-            </button>
-          </div>
-        })}
-        <div className="pipeline-segment"><div className={`workflow-edge ${runnerStatus === 'completed' ? 'active completed' : ''}`}><span /><i /></div><div className={`terminal-node end ${runnerStatus === 'completed' ? 'completed' : ''}`}><span>{runnerStatus === 'completed' ? <Check size={15} /> : <CircleStop size={15} />}</span><strong>HITL Handoff</strong><small>{workflow.final_status}</small></div></div>
-      </div>
-    </div>
-    <div className={`node-inspector ${detailOpen ? 'open' : ''}`}>
-      <button className="inspector-toggle" onClick={() => setDetailOpen((current) => !current)}><div><Code2 size={15} /><span>Node inspector</span><strong>{NODE_LABELS[selectedNode] ?? selectedNode}</strong></div><ChevronDown size={16} /></button>
-      {detailOpen && <div className="inspector-content">
-        <div className="inspector-summary"><div className={`inspector-icon ${getNodeKind(selectedNode)}`}>{getNodeKind(selectedNode) === 'ai' ? <Bot size={19} /> : getNodeKind(selectedNode) === 'control' ? <ShieldCheck size={19} /> : <GitBranch size={19} />}</div><div><div><span>{getNodeKind(selectedNode).toUpperCase()}</span>{artifact && <ArtifactPill status={artifact.status} />}</div><h3>{NODE_LABELS[selectedNode] ?? selectedNode}</h3><p>{getNodeDescription(selectedNode)}</p></div></div>
-        <div className="io-panel"><div className="io-heading"><FileJson size={14} /><strong>Input</strong><span>JSON</span></div><pre>{JSON.stringify(getNodeInput(selectedNode, context, workflow), null, 2)}</pre></div>
-        <div className="io-arrow"><ChevronRight size={18} /></div>
-        <div className="io-panel output"><div className="io-heading"><FileJson size={14} /><strong>Output</strong><span>JSON</span></div><pre>{JSON.stringify(getNodeOutput(selectedNode, artifact, workflow), null, 2)}</pre></div>
-      </div>}
-    </div>
+    {runtimeNotice && <div className={`runtime-notice ${Object.values(runtimeResults).includes('error') ? 'error' : 'warning'}`}>{Object.values(runtimeResults).includes('error') ? <XCircle size={15} /> : <AlertTriangle size={15} />}<span>{runtimeNotice}</span></div>}
+    <div className="workflow-legend"><span><i className="business" /> Nghiệp vụ</span><span><i className="ai" /> AI / RAG</span><span><i className="control" /> Kiểm soát an toàn</span><small>Chọn node để xem dữ liệu và trích dẫn</small></div>
+    <div className="workflow-canvas-viewport"><div className="workflow-canvas-grid" /><div className="visual-pipeline"><div className={`terminal-node start ${runnerStatus !== 'idle' ? 'completed' : ''}`}><span><Zap size={15} /></span><strong>Tiếp nhận hồ sơ</strong><small>Kích hoạt quy trình</small></div>{workflow.route.map((node, index) => {
+      const kind = getNodeKind(node); const isRunning = runnerStatus === 'running' && activeIndex === index; const isCompleted = completedCount > index; const isWaiting = runnerStatus === 'running' && activeIndex < index; const result = runtimeResults[node]; const NodeIcon = kind === 'ai' ? BrainCircuit : kind === 'control' ? ShieldCheck : GitBranch
+      return <div className="pipeline-segment" key={node}><div className={`workflow-edge ${isRunning || isCompleted ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${result ?? ''}`}><span /><i /></div><button onClick={() => { setSelectedNode(node); setDetailOpen(true) }} className={`visual-node ${kind} ${isRunning ? 'running' : ''} ${isCompleted ? 'completed' : ''} ${result ?? ''} ${isWaiting ? 'waiting' : ''} ${selectedNode === node ? 'selected' : ''}`}><i className="port input-port" /><div className="node-top"><span className="node-icon">{isRunning ? <LoaderCircle className="spin" size={16} /> : result === 'error' ? <XCircle size={16} /> : result === 'warning' ? <AlertTriangle size={16} /> : isCompleted ? <Check size={16} /> : <NodeIcon size={16} />}</span><span className="node-kind">{kind === 'ai' ? 'AI AGENT' : kind === 'control' ? 'KIỂM SOÁT' : 'NGHIỆP VỤ'}</span><ChevronRight size={13} /></div><strong>{NODE_LABELS[node] ?? node}</strong><small>{workflow.artifacts[node]?.engine ?? 'DETERMINISTIC'}</small><div className="node-footer"><span>{isRunning ? 'Đang xử lý...' : result === 'error' ? 'Lỗi nghiệp vụ' : result === 'warning' ? 'Cần rà soát' : isCompleted ? 'Hoàn thành' : 'Chờ chạy'}</span>{AI_NODES.has(node) && <Sparkles size={11} />}</div><i className="port output-port" /></button></div>
+    })}<div className="pipeline-segment"><div className={`workflow-edge ${runnerStatus === 'completed' ? 'active completed' : ''}`}><span /><i /></div><div className={`terminal-node end ${runnerStatus === 'completed' ? 'completed' : ''} ${workflow.final_status === 'BLOCKED' ? 'blocked' : ''}`}><span>{workflow.final_status === 'BLOCKED' && runnerStatus === 'completed' ? <XCircle size={15} /> : runnerStatus === 'completed' ? <Check size={15} /> : <CircleStop size={15} />}</span><strong>Chuyển nhân viên</strong><small>{VALUE_LABELS[workflow.final_status] ?? workflow.final_status}</small></div></div></div></div>
+    <div className={`node-inspector ${detailOpen ? 'open' : ''}`}><button className="inspector-toggle" onClick={() => setDetailOpen((current) => !current)}><div><Code2 size={15} /><span>Chi tiết khâu xử lý</span><strong>{NODE_LABELS[selectedNode] ?? selectedNode}</strong></div><ChevronDown size={16} /></button>{detailOpen && <div className="inspector-content"><div className="inspector-summary"><div className={`inspector-icon ${getNodeKind(selectedNode)}`}>{getNodeKind(selectedNode) === 'ai' ? <Bot size={19} /> : getNodeKind(selectedNode) === 'control' ? <ShieldCheck size={19} /> : <GitBranch size={19} />}</div><div><div><span>{getNodeKind(selectedNode) === 'ai' ? 'KHÂU AI / RAG' : getNodeKind(selectedNode) === 'control' ? 'KHÂU KIỂM SOÁT' : 'KHÂU NGHIỆP VỤ'}</span>{artifact && <ArtifactPill status={artifact.status} />}</div><h3>{NODE_LABELS[selectedNode] ?? selectedNode}</h3><p>{getNodeDescription(selectedNode)}</p></div></div><div className="human-io-grid"><HumanDataPanel title="Dữ liệu được sử dụng" icon={<FileInput size={15} />} data={getNodeInput(selectedNode, context, workflow)} /><div className="io-arrow"><ChevronRight size={18} /></div><HumanDataPanel title="Kết quả của khâu" icon={<FileOutput size={15} />} data={getNodeOutput(selectedNode, artifact, workflow)} tone="output" /></div><aside className="node-citations"><div className="citation-heading"><ScrollText size={15} /><div><strong>Trích dẫn và nguồn</strong><span>Mở trang căn cứ đầy đủ</span></div></div>{citations.map((citation) => <Link key={citation.id} className={citation.issue ? 'has-issue' : ''} to={`/citations/${context.case_id}/${encodeURIComponent(citation.id)}`} state={{ issueTarget: citation.target }}><div><span>{citation.source}</span>{citation.issue && <b><AlertTriangle size={10} /> Có vấn đề</b>}</div><blockquote>“{citation.quote}”</blockquote><small>{citation.reference}<ExternalLink size={10} /></small></Link>)}</aside></div>}</div>
   </section>
 }
