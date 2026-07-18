@@ -1,17 +1,23 @@
 import type { CaseContext, ReadinessCase } from './domain'
+import { readinessApi } from './api'
 import { makeReadinessCase, mockCases } from './mock-data'
 
 export interface ReadinessAdapter {
-  listCases(): ReadinessCase[]
-  createCase(payload: { context: CaseContext; company_name: string; owner: string }): ReadinessCase
+  listCases(signal?: AbortSignal): Promise<ReadinessCase[]>
+  createCase(payload: { context: CaseContext; company_name: string; owner: string }): Promise<ReadinessCase>
 }
 
-/** Adapter boundary: replace this implementation with the FastAPI client after backend contract freeze. */
-export const mockReadinessAdapter: ReadinessAdapter = {
-  listCases() {
-    return mockCases
+export const apiReadinessAdapter: ReadinessAdapter = {
+  listCases(signal) {
+    return readinessApi.list(signal)
   },
-  createCase({ context, company_name, owner }) {
-    return makeReadinessCase(context, company_name, owner)
+  createCase(payload) {
+    return readinessApi.create(payload)
   },
+}
+
+export const fallbackReadinessAdapter = {
+  listCases: () => mockCases,
+  createCase: ({ context, company_name, owner }: { context: CaseContext; company_name: string; owner: string }) =>
+    makeReadinessCase(context, company_name, owner),
 }

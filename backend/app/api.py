@@ -12,6 +12,9 @@ from .exceptions import DomainError
 from .repositories import AssessmentRepository, CaseRepository, run_schema
 from .schemas import ApiResponse, ApprovalRequest, RejectionRequest
 from .services import ActionService, AssessmentService, ResolutionService, company_projection
+from .readiness_schemas import CreateReadinessCase
+from .readiness_service import ReadinessService
+from .dependencies import get_readiness_service
 
 
 router = APIRouter()
@@ -54,6 +57,39 @@ def list_cases(
         loaded = runs.get(latest.run_id) if latest else None
         items.append(company_projection(record, loaded).model_dump())
     return response(request, items, total=len(records))
+
+
+@router.get("/api/readiness/cases", response_model=ApiResponse)
+def list_readiness_cases(
+    request: Request,
+    q: str | None = Query(default=None),
+    product: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    readiness: ReadinessService = Depends(get_readiness_service),
+) -> ApiResponse:
+    items = readiness.list(q=q, product=product, status=status)
+    return response(request, [item.model_dump(mode="json") for item in items], total=len(items))
+
+
+@router.post("/api/readiness/cases", response_model=ApiResponse, status_code=201)
+def create_readiness_case(
+    request: Request,
+    body: CreateReadinessCase,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    readiness: ReadinessService = Depends(get_readiness_service),
+) -> ApiResponse:
+    item = readiness.create(body, idempotency_key)
+    return response(request, item.model_dump(mode="json"), case_id=item.id)
+
+
+@router.get("/api/readiness/cases/{case_id}", response_model=ApiResponse)
+def get_readiness_case(
+    request: Request,
+    case_id: str,
+    readiness: ReadinessService = Depends(get_readiness_service),
+) -> ApiResponse:
+    item = readiness.get(case_id)
+    return response(request, item.model_dump(mode="json"))
 
 
 @router.get("/api/cases/{case_id}", response_model=ApiResponse)

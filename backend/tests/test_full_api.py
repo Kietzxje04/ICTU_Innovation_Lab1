@@ -95,6 +95,60 @@ class FullApiTest(unittest.TestCase):
         self.assert_error(self.client.get("/api/cases/not-found"), 404, "CASE_NOT_FOUND")
         self.assertEqual(404, self.client.get("/api/v1/cases").status_code)
 
+        # Updated frontend contract: ReadinessCase/CaseContext/WorkflowState/EvidenceItem.
+        readiness_cases = self.assert_success(self.client.get("/api/readiness/cases"))
+        self.assertEqual(4, readiness_cases["meta"]["total"])
+        readiness_case = readiness_cases["data"][0]
+        self.assertIn("context", readiness_case)
+        self.assertIn("workflow", readiness_case)
+        self.assertIn("evidence", readiness_case)
+        self.assertIn(readiness_case["context"]["product"], {"WORKING_CAPITAL", "CORPORATE_OVERDRAFT"})
+        self.assertTrue(readiness_case["workflow"]["artifacts"])
+        self.assertTrue(readiness_case["evidence"])
+
+        frontend_case_id = f"CASE-FRONTEND-{uuid4().hex[:8]}"
+        create_payload = {
+            "company_name": "Frontend Contract Company",
+            "owner": "QA Owner",
+            "context": {
+                "case_id": frontend_case_id,
+                "customer_id": f"CUS-{uuid4().hex[:8]}",
+                "existing_customer": True,
+                "product": "WORKING_CAPITAL",
+                "requested_amount": 5_000_000_000,
+                "relationship_months": 24,
+                "submitted_documents": ["BUSINESS_REGISTRATION", "FINANCIAL_STATEMENTS_2Y", "CIC_REPORT", "WORKING_CAPITAL_PLAN"],
+                "required_documents": ["BUSINESS_REGISTRATION", "FINANCIAL_STATEMENTS_2Y", "TAX_RETURNS_2Y", "CIC_REPORT", "WORKING_CAPITAL_PLAN"],
+                "annual_revenue": 30_000_000_000,
+                "pretax_profit_last_2_years": [1_800_000_000, 2_100_000_000],
+                "tax_declared_revenue": 29_500_000_000,
+                "cic_bad_debt": False,
+                "kyc_aml_flags": [],
+                "metadata": {"industry": "Commerce", "branch": "ICTU", "currency": "VND"},
+            },
+        }
+        created_readiness = self.assert_success(
+            self.client.post(
+                "/api/readiness/cases",
+                headers={"Idempotency-Key": f"create-{frontend_case_id}"},
+                json=create_payload,
+            ),
+            expected_status=201,
+        )
+        self.assertEqual(frontend_case_id, created_readiness["data"]["id"])
+        self.assertEqual("Frontend Contract Company", created_readiness["data"]["company_name"])
+        self.assertEqual("WORKING_CAPITAL", created_readiness["data"]["context"]["product"])
+        self.assertGreaterEqual(len(created_readiness["data"]["workflow"]["route"]), 10)
+        self.assertGreaterEqual(len(created_readiness["data"]["evidence"]), 1)
+
+        readiness_detail = self.assert_success(self.client.get(f"/api/readiness/cases/{frontend_case_id}"))
+        self.assertEqual(frontend_case_id, readiness_detail["data"]["workflow"]["case"]["case_id"])
+        self.assert_error(
+            self.client.post("/api/readiness/cases", json=create_payload),
+            409,
+            "CASE_ALREADY_EXISTS",
+        )
+
         # Assessment run and request idempotency.
         idempotency_key = f"full-api-run-{uuid4().hex}"
         run_response = self.client.post(
@@ -123,7 +177,8 @@ class FullApiTest(unittest.TestCase):
         )
 
         runs = self.assert_success(self.client.get("/api/cases/toan-cau/assessment-runs"))
-        self.assertEqual(1, runs["meta"]["total"])
+        self.assertGreaterEqual(runs["meta"]["total"], 2)
+        run_count_before_rerun = runs["meta"]["total"]
 
         run_detail = self.assert_success(self.client.get(f"/api/cases/toan-cau/assessment-runs/{run_id}"))
         self.assertEqual(run_id, run_detail["data"]["run_id"])
@@ -219,7 +274,7 @@ class FullApiTest(unittest.TestCase):
         rerun = self.assert_success(self.client.post("/api/cases/toan-cau/assessment-runs/rerun"))
         self.assertNotEqual(run_id, rerun["data"]["run_id"])
         runs_after_rerun = self.assert_success(self.client.get("/api/cases/toan-cau/assessment-runs"))
-        self.assertEqual(2, runs_after_rerun["meta"]["total"])
+        self.assertEqual(run_count_before_rerun + 1, runs_after_rerun["meta"]["total"])
 
         # Browser CORS contract.
         cors = self.client.options(

@@ -11,7 +11,7 @@ const money = (value: number | null) => value === null ? 'Chưa cung cấp' : `$
 export function CaseDetailPage() {
   const { caseId } = useParams()
   const location = useLocation()
-  const { cases } = useReadiness()
+  const { cases, isLoading } = useReadiness()
   const [hitlMessage, setHitlMessage] = useState('')
   const item = cases.find((entry) => entry.id === caseId)
   useEffect(() => {
@@ -19,6 +19,7 @@ export function CaseDetailPage() {
     const timer = window.setTimeout(() => document.getElementById(location.hash.slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80)
     return () => window.clearTimeout(timer)
   }, [item, location.hash])
+  if (isLoading) return <main className="page not-found"><h1>Đang tải hồ sơ...</h1><p>Backend đang chuẩn bị WorkflowState và evidence.</p></main>
   if (!item) return <main className="page not-found"><h1>Không tìm thấy hồ sơ</h1><Link className="primary-button" to="/">Về dashboard</Link></main>
   const { context, workflow } = item
   const missing = context.required_documents.filter((document) => !context.submitted_documents.includes(document))

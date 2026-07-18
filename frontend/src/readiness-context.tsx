@@ -1,6 +1,6 @@
-import { createContext, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { CaseContext, ReadinessCase } from './domain'
-import { mockReadinessAdapter } from './readiness-adapter'
+import { apiReadinessAdapter, fallbackReadinessAdapter } from './readiness-adapter'
 
 interface CreateCasePayload {
   context: CaseContext
@@ -10,23 +10,57 @@ interface CreateCasePayload {
 
 interface ReadinessContextValue {
   cases: ReadinessCase[]
-  dataMode: 'mock'
-  createCase: (payload: CreateCasePayload) => ReadinessCase
+  dataMode: 'api' | 'fallback'
+  isLoading: boolean
+  error: string | null
+  refresh: () => void
+  createCase: (payload: CreateCasePayload) => Promise<ReadinessCase>
 }
 
 const ReadinessContext = createContext<ReadinessContextValue | null>(null)
 
 export function ReadinessProvider({ children }: { children: React.ReactNode }) {
-  const [cases, setCases] = useState<ReadinessCase[]>(() => mockReadinessAdapter.listCases())
+  const [cases, setCases] = useState<ReadinessCase[]>([])
+  const [dataMode, setDataMode] = useState<'api' | 'fallback'>('api')
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [refreshToken, setRefreshToken] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setIsLoading(true)
+    setError(null)
+    apiReadinessAdapter.listCases(controller.signal)
+      .then((items) => {
+        setCases(items)
+        setDataMode('api')
+      })
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === 'AbortError') return
+        setCases(fallbackReadinessAdapter.listCases())
+        setDataMode('fallback')
+        setError(reason instanceof Error ? reason.message : 'Không thể kết nối backend')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false)
+      })
+    return () => controller.abort()
+  }, [refreshToken])
+
+  const refresh = useCallback(() => setRefreshToken((value) => value + 1), [])
   const value = useMemo<ReadinessContextValue>(() => ({
     cases,
-    dataMode: 'mock',
-    createCase: ({ context, company_name, owner }) => {
-      const nextCase = mockReadinessAdapter.createCase({ context, company_name, owner })
+    dataMode,
+    isLoading,
+    error,
+    refresh,
+    createCase: async ({ context, company_name, owner }) => {
+      const nextCase = await apiReadinessAdapter.createCase({ context, company_name, owner })
       setCases((current) => [nextCase, ...current])
+      setDataMode('api')
       return nextCase
     },
-  }), [cases])
+  }), [cases, dataMode, error, isLoading, refresh])
   return <ReadinessContext.Provider value={value}>{children}</ReadinessContext.Provider>
 }
 

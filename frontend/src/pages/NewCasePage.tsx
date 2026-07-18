@@ -13,6 +13,8 @@ export function NewCasePage() {
   const [product, setProduct] = useState<ProductType>(initialProduct)
   const [submitted, setSubmitted] = useState<string[]>([...documentOptions[initialProduct]])
   const [amlFlags, setAmlFlags] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
   const required = [...documentOptions[product]]
   const previewContext = useMemo<CaseContext>(() => ({
     case_id: 'PREVIEW', customer_id: 'PREVIEW', existing_customer: true, product, requested_amount: 1,
@@ -28,7 +30,7 @@ export function NewCasePage() {
   }
   const toggleDocument = (document: string) => setSubmitted((current) => current.includes(document) ? current.filter((item) => item !== document) : [...current, document])
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
     const caseId = String(data.get('case_id')).trim()
@@ -49,13 +51,21 @@ export function NewCasePage() {
       kyc_aml_flags: amlFlags.split(',').map((item) => item.trim()).filter(Boolean),
       metadata: { industry: String(data.get('industry')).trim(), branch: String(data.get('branch')).trim(), currency: 'VND' },
     }
-    const next = createCase({ context, company_name: companyName, owner: String(data.get('owner')).trim() })
-    navigate(`/cases/${next.id}`)
+    setSubmitting(true)
+    setSubmitError('')
+    try {
+      const next = await createCase({ context, company_name: companyName, owner: String(data.get('owner')).trim() })
+      navigate(`/cases/${next.id}`)
+    } catch (reason) {
+      setSubmitError(reason instanceof Error ? reason.message : 'Không thể tạo hồ sơ')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return <main className="page intake-page">
     <Link className="back-link" to="/"><ArrowLeft size={15} /> Quay lại dashboard</Link>
-    <div className="page-heading"><div><p className="eyebrow">CASE INTAKE</p><h1>Tạo hồ sơ readiness</h1><p>Nhập dữ liệu theo contract CaseContext; workflow dưới đây chỉ mô phỏng ở frontend.</p></div></div>
+    <div className="page-heading"><div><p className="eyebrow">CASE INTAKE</p><h1>Tạo hồ sơ readiness</h1><p>Nhập dữ liệu theo contract CaseContext; backend sẽ chạy Agent workflow và trả về readiness artifacts.</p></div></div>
     <form onSubmit={submit} className="intake-layout">
       <div className="intake-main">
         <section className="form-section"><div className="form-section-title"><span>01</span><div><h2>Định danh hồ sơ</h2><p>Thông tin quản lý và quan hệ khách hàng</p></div></div><div className="form-grid">
@@ -78,7 +88,7 @@ export function NewCasePage() {
         </div></section>
         <section className="form-section"><div className="form-section-title"><span>03</span><div><h2>Tài liệu và AML</h2><p>Document completeness và compliance routing</p></div></div><div className="document-checklist">{required.map((document) => <label key={document}><input type="checkbox" checked={submitted.includes(document)} onChange={() => toggleDocument(document)} /><span><Check size={13} /></span><strong>{document.replaceAll('_', ' ')}</strong></label>)}</div><label className="wide-field">KYC/AML flags (phân cách bằng dấu phẩy)<input value={amlFlags} onChange={(event) => setAmlFlags(event.target.value)} placeholder="Ví dụ: BENEFICIAL_OWNER_REVIEW" /></label></section>
       </div>
-      <aside className="route-preview"><div className="route-preview-title"><RouteIcon size={18} /><div><strong>Workflow preview</strong><span>{route.length} nodes · max rework 1</span></div></div><div className="preview-nodes">{route.map((node, index) => <div key={node}><i>{index + 1}</i><span>{NODE_LABELS[node] ?? node}</span>{['MANDATORY_CRITIC', 'CITATION_VALIDATOR', 'POLICY_GATE'].includes(node) && <b>Mandatory</b>}</div>)}</div>{getRouteReasons(previewContext).length > 0 && <div className="route-warning"><ShieldAlert size={15} /><span>{getRouteReasons(previewContext).join(' · ')}</span></div>}<button className="primary-button submit-case" type="submit">Tạo và chạy mock workflow <ArrowRight size={15} /></button><p className="boundary-note">Kết quả chỉ là readiness artifact để cán bộ rà soát, không phải phê duyệt tín dụng.</p></aside>
+      <aside className="route-preview"><div className="route-preview-title"><RouteIcon size={18} /><div><strong>Workflow preview</strong><span>{route.length} nodes · max rework 1</span></div></div><div className="preview-nodes">{route.map((node, index) => <div key={node}><i>{index + 1}</i><span>{NODE_LABELS[node] ?? node}</span>{['MANDATORY_CRITIC', 'CITATION_VALIDATOR', 'POLICY_GATE'].includes(node) && <b>Mandatory</b>}</div>)}</div>{getRouteReasons(previewContext).length > 0 && <div className="route-warning"><ShieldAlert size={15} /><span>{getRouteReasons(previewContext).join(' · ')}</span></div>}{submitError && <div className="route-warning"><ShieldAlert size={15} /><span>{submitError}</span></div>}<button disabled={submitting} className="primary-button submit-case" type="submit">{submitting ? 'Đang chạy Agent workflow...' : 'Tạo và chạy Agent workflow'} <ArrowRight size={15} /></button><p className="boundary-note">Kết quả chỉ là readiness artifact để cán bộ rà soát, không phải phê duyệt tín dụng.</p></aside>
     </form>
   </main>
 }
