@@ -71,6 +71,8 @@ export interface LoanApprovalStatus {
   can_transfer: boolean
   must_transfer: boolean
   permissions: string[]
+  approved_by_name?: string | null
+  approved_at?: string | null
 }
 
 export interface LoanApprovalRecord {
