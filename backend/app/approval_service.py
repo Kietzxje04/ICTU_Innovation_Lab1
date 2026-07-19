@@ -60,6 +60,14 @@ class LoanApprovalService:
             and not role_can_approve(user.role.role_id, case.requested_amount)
         )
         required_role = "EMPLOYEE" if case.requested_amount < 500_000_000 else "MANAGER" if case.requested_amount < 1_000_000_000 else "DIRECTOR"
+        approved_by_name = None
+        approved_at = None
+        if record.status == "APPROVED" and record.approved_by:
+            approver = self.session.get(UserRecord, record.approved_by)
+            if approver:
+                approved_by_name = approver.full_name
+            approved_at = record.updated_at.isoformat()
+
         return {
             "case_id": case_id,
             "amount": case.requested_amount,
@@ -73,6 +81,8 @@ class LoanApprovalService:
             "can_transfer": can_transfer,
             "must_transfer": ready and not role_can_approve(assigned_role, case.requested_amount),
             "permissions": user.role.permissions,
+            "approved_by_name": approved_by_name,
+            "approved_at": approved_at,
         }
 
     def approve(self, case_id: str, user: CurrentUser, reason: str | None) -> dict[str, object]:
