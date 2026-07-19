@@ -125,6 +125,8 @@ export interface ReadinessCase {
   context: CaseContext
   workflow: WorkflowState
   evidence: EvidenceItem[]
+  approval_status?: string | null
+  current_role?: string | null
 }
 
 export const PRODUCT_LABELS: Record<ProductType, string> = {

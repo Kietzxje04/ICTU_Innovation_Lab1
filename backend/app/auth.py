@@ -73,6 +73,11 @@ def role_can_approve(role_id: str, amount: float) -> bool:
     return role_id == ROLE_EMPLOYEE and amount < 500_000_000
 
 
+def role_at_least(user_role: str, required_role: str) -> bool:
+    """Return True when *user_role* is equal to or higher than *required_role* in the hierarchy."""
+    return ROLE_ORDER.get(user_role, -1) >= ROLE_ORDER.get(required_role, 999)
+
+
 def next_role(role_id: str) -> str | None:
     return {ROLE_EMPLOYEE: ROLE_MANAGER, ROLE_MANAGER: ROLE_DIRECTOR}.get(role_id)
 

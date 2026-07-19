@@ -58,6 +58,34 @@ export interface RoutePreview {
   reasons: string[]
 }
 
+export interface LoanApprovalStatus {
+  case_id: string
+  amount: number
+  status: 'PENDING' | 'TRANSFERRED' | 'APPROVED'
+  current_role: string
+  required_role: string
+  assigned_to: string | null
+  ready: boolean
+  blockers: string[]
+  can_approve: boolean
+  can_transfer: boolean
+  must_transfer: boolean
+  permissions: string[]
+  approved_by_name?: string | null
+  approved_at?: string | null
+}
+
+export interface LoanApprovalRecord {
+  approval_id: string
+  case_id: string
+  status: string
+  current_role: string
+  assigned_to: string | null
+  approved_by: string | null
+  decision_reason: string | null
+  history: Array<Record<string, unknown>>
+}
+
 interface StepwiseRunResponse {
   run_id: string
   state: WorkflowState
@@ -104,5 +132,15 @@ export const readinessApi = {
       signal,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ context }),
+    }),
+  loanApproval: (caseId: string, signal?: AbortSignal) =>
+    request<LoanApprovalStatus>(`/api/cases/${encodeURIComponent(caseId)}/loan-approval`, { signal }),
+  approveLoan: (caseId: string, reason?: string) =>
+    request<LoanApprovalRecord>(`/api/cases/${encodeURIComponent(caseId)}/loan-approval/approve`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: reason || null }),
+    }),
+  transferLoan: (caseId: string, reason: string) =>
+    request<LoanApprovalRecord>(`/api/cases/${encodeURIComponent(caseId)}/loan-approval/transfer`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }),
     }),
 }

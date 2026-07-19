@@ -5,8 +5,9 @@ from sqlalchemy.orm import Session
 
 from app.approval_service import LoanApprovalService
 from app.auth import CurrentUser, role_can_approve, verify_password
+from app.exceptions import DomainError
 from app.database import Base
-from app.models import RoleRecord, UserRecord
+from app.models import AssessmentRunRecord, RoleRecord, UserRecord
 from app.seed import seed_cases
 
 
@@ -16,6 +17,22 @@ class RbacApprovalTest(unittest.TestCase):
         Base.metadata.create_all(self.engine)
         with Session(self.engine) as session:
             seed_cases(session)
+
+    @staticmethod
+    def mark_ready(session: Session, case_id: str) -> None:
+        session.add(AssessmentRunRecord(
+            run_id=f"ready-{case_id}",
+            case_id=case_id,
+            idempotency_key=f"ready-{case_id}",
+            input_hash="test-ready-input",
+            workflow_id="test-readiness",
+            workflow_version="1.0.0",
+            status="COMPLETED",
+            route=["POLICY_GATE"],
+            critic_verdict="PASS",
+            final_status="READY_FOR_HUMAN_REVIEW",
+        ))
+        session.commit()
 
     def test_seeded_account_counts_and_passwords(self) -> None:
         with Session(self.engine) as session:
@@ -42,11 +59,24 @@ class RbacApprovalTest(unittest.TestCase):
         with Session(self.engine) as session:
             users = {user.username: user for user in session.scalars(select(UserRecord))}
             roles = {role.role_id: role for role in session.scalars(select(RoleRecord))}
+            self.mark_ready(session, "hung-phat")
             service = LoanApprovalService(session)
             first = service.transfer("hung-phat", CurrentUser(users["employee-1"], roles["EMPLOYEE"]), "Vượt hạn mức nhân viên", "manager-1")
             second = service.transfer("hung-phat", CurrentUser(users["manager-1"], roles["MANAGER"]), "Vượt hạn mức quản lý", "director-1")
             self.assertEqual("MANAGER", first["current_role"])
             self.assertEqual("DIRECTOR", second["current_role"])
+
+    def test_higher_role_cannot_bypass_required_transfer(self) -> None:
+        with Session(self.engine) as session:
+            users = {user.username: user for user in session.scalars(select(UserRecord))}
+            roles = {role.role_id: role for role in session.scalars(select(RoleRecord))}
+            self.mark_ready(session, "hung-phat")
+            service = LoanApprovalService(session)
+            status = service.check("hung-phat", CurrentUser(users["director-1"], roles["DIRECTOR"]))
+            self.assertFalse(status["can_approve"])
+            with self.assertRaises(DomainError) as context:
+                service.approve("hung-phat", CurrentUser(users["director-1"], roles["DIRECTOR"]), "Không được bỏ qua luồng chuyển cấp")
+            self.assertEqual("APPROVAL_NOT_ASSIGNED", context.exception.code)
 
 
 if __name__ == "__main__":

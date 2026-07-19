@@ -1,4 +1,6 @@
 import sys
+import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -19,6 +21,15 @@ class RagLoaderTest(unittest.TestCase):
         namespaces = {namespace_for(chunk) for chunk in chunks}
         self.assertIn(Namespace.QUARANTINE, namespaces)
         self.assertIn(Namespace.DEMO_INTERNAL_POLICY, namespaces)
+
+    def test_generated_jsonl_excludes_quarantine_by_default(self) -> None:
+        source = json.loads((ROOT / "final_rag_data_normalized_v1.json").read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as directory:
+            generated = Path(directory)
+            (generated / "accepted.jsonl").write_text(json.dumps(source[0], ensure_ascii=False) + "\n", encoding="utf-8")
+            (generated / "quarantine.jsonl").write_text(json.dumps(source[1], ensure_ascii=False) + "\n", encoding="utf-8")
+            self.assertEqual(1, len(RagCorpus.from_generated(generated).load()))
+            self.assertEqual(2, len(RagCorpus.from_generated(generated, include_quarantine=True).load()))
 
 
 if __name__ == "__main__":

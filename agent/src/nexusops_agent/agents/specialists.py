@@ -38,12 +38,21 @@ class ProductAgent(BaseAgent):
         hits = []
         if self.retrieval is not None:
             query = "điều kiện cấp thấu chi doanh nghiệp" if state.case.product == "CORPORATE_OVERDRAFT" else "điều kiện vay vốn lưu động doanh nghiệp"
-            hits = self.retrieval.retrieve(agent_id=self.agent_id, query=query, demo_mode=self.demo_mode)
+            hits = self.retrieval.retrieve(
+                agent_id=self.agent_id,
+                query=query,
+                demo_mode=self.demo_mode,
+                product=state.case.product.value,
+                topics={"ELIGIBILITY", "REQUIRED_DOCUMENTS"},
+            )
         warnings = ["NO_PRODUCT_EVIDENCE"] if not hits else []
-        if any(hit.chunk.is_synthetic for hit in hits):
-            warnings.append("SYNTHETIC_DEMO_POLICY_NOT_OFFICIAL")
+        demo_evidence_used = any(hit.chunk.is_synthetic for hit in hits)
         summary = f"Product route: {state.case.product}; evidence={len(hits)}"
-        raw = {"evidence_chunk_ids": [hit.chunk.chunk_id for hit in hits]}
+        raw = {
+            "evidence_chunk_ids": [hit.chunk.chunk_id for hit in hits],
+            "demo_evidence_used": demo_evidence_used,
+            "notices": ["SYNTHETIC_DEMO_POLICY_NOT_OFFICIAL"] if demo_evidence_used else [],
+        }
         engine = self.engine
         if self.reasoner is not None:
             try:
@@ -53,7 +62,8 @@ class ProductAgent(BaseAgent):
                      "relationship_months": state.case.relationship_months, "submitted_documents": state.case.submitted_documents,
                      "required_documents": state.case.required_documents,
                      "evidence": [{"chunk_id": hit.chunk.chunk_id, "content": hit.chunk.content[:900]} for hit in hits],
-                     "boundary": "Readiness only; never approve, reject, price or set a limit."},
+                     "evidence_disclaimer": "Synthetic demo policy; not an official bank policy." if demo_evidence_used else None,
+                     "boundary": "Readiness only; never approve, reject, price or set a limit. Clearly label synthetic evidence as demo content."},
                     LiveAgentNarrative,
                 )
                 live = invocation.result

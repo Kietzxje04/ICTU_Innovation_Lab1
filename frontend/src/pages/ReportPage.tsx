@@ -1,8 +1,10 @@
 import { ArrowLeft, BookOpen, Building2, CheckCircle2, Download, FileText, Printer, ShieldCheck } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { FINAL_STATUS_LABELS, NODE_LABELS } from '../domain'
 import { useReadiness } from '../readiness-context'
 import { useAuth } from '../auth-context'
+import { readinessApi, type LoanApprovalStatus } from '../api'
 
 const money = (value: number | null) => value === null ? 'Chưa cung cấp' : `${new Intl.NumberFormat('vi-VN').format(value)} VND`
 const dateFormatter = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -22,7 +24,17 @@ export function ReportPage() {
   const { caseId } = useParams()
   const { cases } = useReadiness()
   const { user } = useAuth()
+  const [approval, setApproval] = useState<LoanApprovalStatus | null>(null)
   const item = cases.find((entry) => entry.id === caseId)
+
+  useEffect(() => {
+    if (!caseId) return
+    const controller = new AbortController()
+    readinessApi.loanApproval(caseId, controller.signal)
+      .then(setApproval)
+      .catch(() => undefined)
+    return () => controller.abort()
+  }, [caseId])
   if (!item) return <main className="page not-found"><h1>Không tìm thấy hồ sơ báo cáo</h1><Link className="primary-button" to="/">Về dashboard</Link></main>
 
   const { context, workflow } = item
@@ -52,7 +64,19 @@ export function ReportPage() {
     <div className="report-actions"><Link className="back-link" to={`/cases/${item.id}`}><ArrowLeft size={15} /> Quay lại hồ sơ</Link><div><span>Bản xem trước báo cáo gửi doanh nghiệp</span><button className="outline-button" onClick={exportWord}><Download size={14} /> Xuất Word (.doc)</button><button className="primary-button" onClick={() => window.print()}><Printer size={14} /> In / Lưu PDF</button></div></div>
     <article className="report-paper" id="company-supplement-report">
       <header className="report-letterhead"><div className="report-logo"><Building2 size={25} /></div><h1>NEXUSOPS AI — SME LOAN READINESS</h1><p>PHIẾU YÊU CẦU BỔ SUNG VÀ GIẢI TRÌNH HỒ SƠ</p><small>Số: {item.id}/RFR · Ngày {dateFormatter.format(reportDate)}</small></header>
-      <section className="report-recipient"><p><strong>Kính gửi:</strong> {item.company_name}</p><p><strong>Mã khách hàng:</strong> {context.customer_id}</p><p><strong>Người phụ trách hồ sơ:</strong> {item.owner}</p><p className="report-handler-line"><strong>Người xử lý hồ sơ:</strong> {user?.full_name ?? item.owner}</p><p className="report-handler-line"><strong>Chức vụ:</strong> {user?.role_name ?? user?.role_id ?? 'Chuyên viên'}</p></section>
+      <section className="report-recipient">
+        <p><strong>Kính gửi:</strong> {item.company_name}</p>
+        <p><strong>Mã khách hàng:</strong> {context.customer_id}</p>
+        <p><strong>Người phụ trách hồ sơ:</strong> {item.owner}</p>
+        <p className="report-handler-line"><strong>Người xử lý hồ sơ:</strong> {user?.full_name ?? item.owner}</p>
+        <p className="report-handler-line"><strong>Chức vụ:</strong> {user?.role_name ?? user?.role_id ?? 'Chuyên viên'}</p>
+        {approval?.status === 'APPROVED' && (
+          <>
+            <p className="report-handler-line"><strong>Người duyệt hồ sơ:</strong> {approval.approved_by_name ?? 'Giám đốc'}</p>
+            <p className="report-handler-line"><strong>Ngày duyệt:</strong> {approval.approved_at ? dateFormatter.format(new Date(approval.approved_at)) : 'N/A'}</p>
+          </>
+        )}
+      </section>
       <section className="report-subject"><strong>V/v: Thông báo kết quả kiểm chứng readiness và yêu cầu bổ sung thông tin</strong><p>Hệ thống đã hoàn tất quy trình kiểm chứng dữ liệu, tài liệu, chỉ số tài chính và căn cứ chính sách cho hồ sơ nêu trên. Kết quả này phục vụ cán bộ chuyên môn rà soát và không phải quyết định phê duyệt hoặc từ chối khoản vay.</p></section>
       <section className={`report-notice ${workflow.final_status === 'BLOCKED' ? 'blocked' : ''}`}><div><ShieldCheck size={19} /><span>Trạng thái sau kiểm chứng</span></div><strong>{FINAL_STATUS_LABELS[workflow.final_status]}</strong><p>Phản biện bắt buộc: {workflow.critic_verdict} · {workflow.route.length} khâu đã được thực hiện.</p></section>
 
@@ -68,7 +92,23 @@ export function ReportPage() {
 
       <section className="report-section"><h2>6. Phiếu phản hồi của doanh nghiệp</h2><table><tbody><tr><th>Nội dung phản hồi/giải trình</th><td className="report-writing-area" /></tr><tr><th>Danh sách tệp gửi kèm</th><td className="report-writing-area short" /></tr><tr><th>Người đại diện xác nhận</th><td>Họ tên: ........................................................ Chức vụ: ........................................................</td></tr><tr><th>Ngày xác nhận</th><td>........ / ........ / ........</td></tr></tbody></table></section>
 
-      <footer><div className="report-signature"><strong>ĐẠI DIỆN ĐƠN VỊ TIẾP NHẬN</strong><span>(Ký, ghi rõ họ tên)</span></div><p className="report-disclaimer">Báo cáo được tạo từ NexusOps AI phục vụ quy trình loan readiness. Các phát hiện và đề xuất trong báo cáo cần được cán bộ có thẩm quyền kiểm tra trước khi gửi chính thức tới doanh nghiệp.</p></footer>
+      <footer>
+        <div className="report-signature" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '35px' }}>
+          <div>
+            <strong>CÁN BỘ XỬ LÝ HỒ SƠ</strong>
+            <span style={{ display: 'block', fontSize: '9px', color: '#657583', marginTop: '2px' }}>(Ký, ghi rõ họ tên)</span>
+            <p style={{ marginTop: '40px', marginBottom: 0, fontWeight: 'bold' }}>{user?.full_name ?? item.owner}</p>
+          </div>
+          {approval?.status === 'APPROVED' && (
+            <div style={{ textAlign: 'right' }}>
+              <strong>NGƯỜI DUYỆT HỒ SƠ</strong>
+              <span style={{ display: 'block', fontSize: '9px', color: '#657583', marginTop: '2px' }}>(Ký, ghi rõ họ tên)</span>
+              <p style={{ marginTop: '40px', marginBottom: 0, fontWeight: 'bold' }}>{approval.approved_by_name ?? 'Giám đốc'}</p>
+            </div>
+          )}
+        </div>
+        <p className="report-disclaimer" style={{ marginTop: '30px' }}>Báo cáo được tạo từ NexusOps AI phục vụ quy trình loan readiness. Các phát hiện và đề xuất trong báo cáo cần được cán bộ có thẩm quyền kiểm tra trước khi gửi chính thức tới doanh nghiệp.</p>
+      </footer>
     </article>
   </main>
 }

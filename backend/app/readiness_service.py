@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .exceptions import DomainError
-from .models import AgentArtifactRecord, AssessmentRunRecord, CaseRecord
+from .models import AgentArtifactRecord, AssessmentRunRecord, CaseRecord, LoanApprovalRecord
 from .readiness_schemas import CreateReadinessCase, EvidenceItem, ReadinessCase, ReadinessTraceEvent, ReadinessWorkflow
 from .repositories import AssessmentRepository, CaseRepository, case_context_from_record, input_hash
 from .services import AssessmentService
@@ -95,6 +95,9 @@ class ReadinessService:
             final_status="IN_PROGRESS",
             trace=[],
         )
+        approval = self.session.scalar(select(LoanApprovalRecord).where(LoanApprovalRecord.case_id == record.case_id))
+        approval_status = approval.status if approval else "PENDING"
+        current_role = approval.current_role if approval else "EMPLOYEE"
         return ReadinessCase(
             id=record.case_id,
             company_name=record.name,
@@ -106,6 +109,8 @@ class ReadinessService:
             context=context,
             workflow=workflow,
             evidence=[],
+            approval_status=approval_status,
+            current_role=current_role,
         )
 
     def get(self, case_id: str) -> ReadinessCase:
@@ -200,6 +205,9 @@ class ReadinessService:
             trace=traces,
         )
         execution_duration_ms = (run.finished_at - run.started_at).total_seconds() * 1000 if run.finished_at else None
+        approval = self.session.scalar(select(LoanApprovalRecord).where(LoanApprovalRecord.case_id == record.case_id))
+        approval_status = approval.status if approval else "PENDING"
+        current_role = approval.current_role if approval else "EMPLOYEE"
         return ReadinessCase(
             id=record.case_id,
             company_name=record.name,
@@ -211,6 +219,8 @@ class ReadinessService:
             context=context,
             workflow=workflow,
             evidence=evidence,
+            approval_status=approval_status,
+            current_role=current_role,
         )
 
     @staticmethod

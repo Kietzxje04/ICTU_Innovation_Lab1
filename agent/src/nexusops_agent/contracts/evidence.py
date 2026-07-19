@@ -25,8 +25,16 @@ class EvidenceChunk(BaseModel):
     source_authority: str
     validity_status: str
     article: str | None = None
+    article_title: str | None = None
     clause: str | None = None
     point: str | None = None
+    section_type: str | None = None
+    parent_id: str | None = None
+    previous_id: str | None = None
+    next_id: str | None = None
+    heading_path: list[str] = Field(default_factory=list)
+    product_tags: list[str] = Field(default_factory=list)
+    topic_tags: list[str] = Field(default_factory=list)
     page_or_part: int | None = None
     title: str | None = None
     content: str

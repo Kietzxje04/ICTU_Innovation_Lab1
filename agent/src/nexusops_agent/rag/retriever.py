@@ -38,8 +38,11 @@ class HybridLiteRetriever:
         *,
         top_k: int = 6,
         allow_review_required: bool = False,
+        product: str | None = None,
+        topics: set[str] | None = None,
     ) -> list[RetrievalHit]:
         query_tokens = _tokens(query)
+        normalized_topics = {topic.casefold() for topic in (topics or set())}
         hits: list[RetrievalHit] = []
         for chunk in self.corpus.load():
             namespace = namespace_for(chunk)
@@ -47,10 +50,14 @@ class HybridLiteRetriever:
                 continue
             if namespace == Namespace.QUARANTINE and not allow_review_required:
                 continue
+            if product and chunk.product_tags and product not in chunk.product_tags:
+                continue
             document_tokens = _tokens(chunk.embedding_text)
             overlap = len(query_tokens & document_tokens)
             if overlap == 0:
                 continue
-            score = overlap / max(len(query_tokens), 1)
+            product_bonus = 0.25 if product and product in chunk.product_tags else 0.0
+            topic_bonus = 0.1 * len(normalized_topics & {topic.casefold() for topic in chunk.topic_tags})
+            score = overlap / max(len(query_tokens), 1) + product_bonus + topic_bonus
             hits.append(RetrievalHit(chunk=chunk, namespace=namespace, score=score))
         return sorted(hits, key=lambda item: (-item.score, item.chunk.chunk_id))[:top_k]
