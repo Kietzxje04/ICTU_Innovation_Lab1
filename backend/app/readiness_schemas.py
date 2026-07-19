@@ -62,6 +62,8 @@ class ReadinessCase(BaseModel):
     context: CaseContext
     workflow: ReadinessWorkflow
     evidence: list[EvidenceItem]
+    approval_status: str | None = None
+    current_role: str | None = None
 
 
 class CreateReadinessCase(BaseModel):
