@@ -38,7 +38,13 @@ class ProductAgent(BaseAgent):
         hits = []
         if self.retrieval is not None:
             query = "điều kiện cấp thấu chi doanh nghiệp" if state.case.product == "CORPORATE_OVERDRAFT" else "điều kiện vay vốn lưu động doanh nghiệp"
-            hits = self.retrieval.retrieve(agent_id=self.agent_id, query=query, demo_mode=self.demo_mode)
+            hits = self.retrieval.retrieve(
+                agent_id=self.agent_id,
+                query=query,
+                demo_mode=self.demo_mode,
+                product=state.case.product.value,
+                topics={"ELIGIBILITY", "REQUIRED_DOCUMENTS"},
+            )
         warnings = ["NO_PRODUCT_EVIDENCE"] if not hits else []
         if any(hit.chunk.is_synthetic for hit in hits):
             warnings.append("SYNTHETIC_DEMO_POLICY_NOT_OFFICIAL")

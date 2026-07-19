@@ -1,4 +1,6 @@
 import sys
+import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -32,6 +34,23 @@ class RagPolicyTest(unittest.TestCase):
         credit_hits = pipeline.retrieve(agent_id="CREDIT_AGENT", query="điều kiện cấp thấu chi", top_k=3)
         self.assertTrue(credit_hits)
         self.assertTrue(all(hit.namespace == Namespace.DEMO_INTERNAL_POLICY for hit in credit_hits))
+
+    def test_product_metadata_filters_incompatible_chunks(self) -> None:
+        source = json.loads((ROOT / "final_rag_data_normalized_v1.json").read_text(encoding="utf-8"))[-1]
+        source["chunk_id"] = "wc-only"
+        source["content_hash"] = "wc-only-hash"
+        source["product_tags"] = ["WORKING_CAPITAL"]
+        source["embedding_text"] = "điều kiện cấp thấu chi doanh nghiệp"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "accepted.jsonl"
+            path.write_text(json.dumps(source, ensure_ascii=False) + "\n", encoding="utf-8")
+            pipeline = RetrievalPipeline(HybridLiteRetriever(RagCorpus(path)))
+            hits = pipeline.retrieve(
+                agent_id="PRODUCT_AGENT",
+                query="điều kiện cấp thấu chi doanh nghiệp",
+                product="CORPORATE_OVERDRAFT",
+            )
+            self.assertEqual([], hits)
 
 
 if __name__ == "__main__":
