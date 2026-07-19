@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.approval_service import LoanApprovalService
 from app.auth import CurrentUser, role_can_approve, verify_password
+from app.exceptions import DomainError
 from app.database import Base
 from app.models import RoleRecord, UserRecord
 from app.seed import seed_cases
@@ -47,6 +48,17 @@ class RbacApprovalTest(unittest.TestCase):
             second = service.transfer("hung-phat", CurrentUser(users["manager-1"], roles["MANAGER"]), "Vượt hạn mức quản lý", "director-1")
             self.assertEqual("MANAGER", first["current_role"])
             self.assertEqual("DIRECTOR", second["current_role"])
+
+    def test_higher_role_cannot_bypass_required_transfer(self) -> None:
+        with Session(self.engine) as session:
+            users = {user.username: user for user in session.scalars(select(UserRecord))}
+            roles = {role.role_id: role for role in session.scalars(select(RoleRecord))}
+            service = LoanApprovalService(session)
+            status = service.check("hung-phat", CurrentUser(users["director-1"], roles["DIRECTOR"]))
+            self.assertFalse(status["can_approve"])
+            with self.assertRaises(DomainError) as context:
+                service.approve("hung-phat", CurrentUser(users["director-1"], roles["DIRECTOR"]), "Không được bỏ qua luồng chuyển cấp")
+            self.assertEqual("APPROVAL_NOT_ASSIGNED", context.exception.code)
 
 
 if __name__ == "__main__":

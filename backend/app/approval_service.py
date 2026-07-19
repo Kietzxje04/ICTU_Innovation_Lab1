@@ -6,7 +6,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .auth import CurrentUser, ROLE_ORDER, next_role, role_can_approve
+from .auth import CurrentUser, next_role, role_can_approve
 from .exceptions import DomainError
 from .models import CaseRecord, LoanApprovalRecord, UserRecord
 from .repositories import AssessmentRepository
@@ -48,8 +48,17 @@ class LoanApprovalService:
         record = self._record(case_id)
         ready, blockers = self._readiness(case_id)
         assigned_role = record.current_role
-        can_act = ROLE_ORDER[user.role.role_id] >= ROLE_ORDER[assigned_role]
-        can_approve = ready and can_act and role_can_approve(user.role.role_id, case.requested_amount)
+        is_assigned = (
+            user.role.role_id == assigned_role
+            and (record.assigned_to is None or record.assigned_to == user.record.user_id)
+        )
+        can_approve = ready and is_assigned and role_can_approve(user.role.role_id, case.requested_amount)
+        can_transfer = (
+            ready
+            and record.status != "APPROVED"
+            and is_assigned
+            and not role_can_approve(user.role.role_id, case.requested_amount)
+        )
         required_role = "EMPLOYEE" if case.requested_amount < 500_000_000 else "MANAGER" if case.requested_amount < 1_000_000_000 else "DIRECTOR"
         return {
             "case_id": case_id,
@@ -61,6 +70,7 @@ class LoanApprovalService:
             "ready": ready,
             "blockers": blockers,
             "can_approve": can_approve,
+            "can_transfer": can_transfer,
             "must_transfer": ready and not role_can_approve(assigned_role, case.requested_amount),
             "permissions": user.role.permissions,
         }
@@ -73,8 +83,8 @@ class LoanApprovalService:
             return self.serialize(record)
         if not status["ready"]:
             raise DomainError(409, "LOAN_NOT_READY", "Hồ sơ chưa đủ điều kiện phê duyệt", status["blockers"])
-        if ROLE_ORDER[user.role.role_id] < ROLE_ORDER[record.current_role]:
-            raise DomainError(403, "APPROVAL_NOT_ASSIGNED", "Hồ sơ đang được xử lý ở cấp thẩm quyền cao hơn")
+        if user.role.role_id != record.current_role or (record.assigned_to and record.assigned_to != user.record.user_id):
+            raise DomainError(403, "APPROVAL_NOT_ASSIGNED", "Hồ sơ chưa được phân công cho người dùng hoặc cấp thẩm quyền này")
         if not role_can_approve(user.role.role_id, case.requested_amount):
             raise DomainError(403, "APPROVAL_LIMIT_EXCEEDED", "Giá trị khoản vay vượt thẩm quyền; vui lòng chuyển hồ sơ lên cấp trên")
         now = datetime.now(timezone.utc)
@@ -88,9 +98,12 @@ class LoanApprovalService:
     def transfer(self, case_id: str, user: CurrentUser, reason: str, target_user_id: str | None) -> dict[str, object]:
         case = self._case(case_id)
         record = self._record(case_id)
+        status = self.check(case_id, user)
         if record.status == "APPROVED":
             raise DomainError(409, "LOAN_ALREADY_APPROVED", "Hồ sơ đã được phê duyệt")
-        if user.role.role_id != record.current_role:
+        if not status["ready"]:
+            raise DomainError(409, "LOAN_NOT_READY", "Hồ sơ chưa đủ điều kiện để chuyển cấp", status["blockers"])
+        if user.role.role_id != record.current_role or (record.assigned_to and record.assigned_to != user.record.user_id):
             raise DomainError(403, "TRANSFER_NOT_ASSIGNED", "Chỉ cấp đang xử lý hồ sơ mới được chuyển tiếp")
         target_role = next_role(record.current_role)
         if not target_role:
