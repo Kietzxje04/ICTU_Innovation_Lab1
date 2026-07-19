@@ -73,7 +73,7 @@ export function CaseDetailPage() {
   }
 
   return <main className="case-workbench">
-    <div className="case-topline"><Link to="/"><ArrowLeft size={15} /> Hàng đợi</Link><div><span>Case ID</span><strong>{item.id}</strong></div><FinalStatusPill status={workflow.final_status} /></div>
+    <div className="case-topline"><Link to="/"><ArrowLeft size={15} /> Hàng đợi</Link><div><span>Case ID</span><strong>{item.id}</strong></div><FinalStatusPill status={workflow.final_status} approvalStatus={approval?.status} currentRole={approval?.current_role} /></div>
     <section className="case-hero" id="issue-customer"><div><ProductPill product={context.product} /><h1>{item.company_name}</h1><p><UserRound size={13} /> {item.owner} · {context.metadata.branch}</p></div><div className="hero-amount"><span>Giá trị đề nghị</span><strong>{money(context.requested_amount)}</strong><small>{context.metadata.industry}</small></div><div className="hero-sla"><Clock3 size={15} /><span>SLA</span><strong>{item.sla_due}</strong></div></section>
     <section className="safety-banner"><ShieldCheck size={18} /><div><strong>Chỉ đánh giá mức độ sẵn sàng</strong><span>AI tạo kết quả và đề xuất chuyển chuyên viên; không phê duyệt hoặc từ chối khoản vay.</span></div><span>Phản biện: <b>{workflow.critic_verdict}</b></span></section>
     <WorkflowCanvas context={context} workflow={workflow} evidence={item.evidence} onRun={(onNodeResult) => rerunCase(item.id, onNodeResult)} onRunComplete={() => { setWorkflowVerified(true); window.sessionStorage.setItem(`workflow-verified:${item.id}`, 'true') }} />
