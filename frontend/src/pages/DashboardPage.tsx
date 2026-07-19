@@ -16,7 +16,7 @@ export function DashboardPage() {
   const [params, setParams] = useSearchParams()
   const [query, setQuery] = useState(params.get('q') ?? '')
   const [product, setProduct] = useState<'ALL' | ProductType>('ALL')
-  const [status, setStatus] = useState<'ALL' | FinalStatus>('ALL')
+  const [status, setStatus] = useState<'ALL' | FinalStatus | 'APPROVED' | 'TRANSFERRED'>('ALL')
   const [page, setPage] = useState(1)
 
   const todoCases = useMemo(() => {
@@ -44,7 +44,18 @@ export function DashboardPage() {
   useEffect(() => { setQuery(params.get('q') ?? ''); setPage(1) }, [params])
   const filtered = useMemo(() => cases.filter((item) => {
     const text = `${item.id} ${item.company_name} ${item.context.customer_id}`.toLowerCase()
-    return text.includes(query.toLowerCase()) && (product === 'ALL' || item.context.product === product) && (status === 'ALL' || item.workflow.final_status === status)
+    const matchesProduct = product === 'ALL' || item.context.product === product
+    let matchesStatus = false
+    if (status === 'ALL') {
+      matchesStatus = true
+    } else if (status === 'APPROVED') {
+      matchesStatus = item.approval_status === 'APPROVED'
+    } else if (status === 'TRANSFERRED') {
+      matchesStatus = item.approval_status === 'TRANSFERRED'
+    } else {
+      matchesStatus = item.workflow.final_status === status && item.approval_status !== 'APPROVED' && item.approval_status !== 'TRANSFERRED'
+    }
+    return text.includes(query.toLowerCase()) && matchesProduct && matchesStatus
   }), [cases, product, query, status])
   const pageSize = 10
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
@@ -116,7 +127,7 @@ export function DashboardPage() {
 
     <section className="card readiness-list">
       <div className="card-header"><div><h2>Danh sách doanh nghiệp</h2><p>Dữ liệu {dataMode === 'api' ? 'từ máy chủ FastAPI' : 'chưa sẵn sàng'} theo hồ sơ và trạng thái.</p></div><span className="live-indicator"><i /> Cập nhật gần nhất</span></div>
-      <div className="readiness-filters"><label><Search size={15} /><input value={query} onChange={(event) => updateQuery(event.target.value)} placeholder="Mã hồ sơ, khách hàng..." /></label><select value={product} onChange={(event) => { setProduct(event.target.value as typeof product); setPage(1) }}><option value="ALL">Tất cả sản phẩm</option><option value="CORPORATE_OVERDRAFT">Thấu chi doanh nghiệp</option><option value="WORKING_CAPITAL">Vốn lưu động</option></select><select value={status} onChange={(event) => { setStatus(event.target.value as typeof status); setPage(1) }}><option value="ALL">Tất cả trạng thái</option><option value="READY_FOR_HUMAN_REVIEW">Sẵn sàng rà soát</option><option value="NEEDS_MORE_EVIDENCE">Cần thêm bằng chứng</option><option value="BLOCKED">Bị chặn</option></select></div>
+      <div className="readiness-filters"><label><Search size={15} /><input value={query} onChange={(event) => updateQuery(event.target.value)} placeholder="Mã hồ sơ, khách hàng..." /></label><select value={product} onChange={(event) => { setProduct(event.target.value as typeof product); setPage(1) }}><option value="ALL">Tất cả sản phẩm</option><option value="CORPORATE_OVERDRAFT">Thấu chi doanh nghiệp</option><option value="WORKING_CAPITAL">Vốn lưu động</option></select><select value={status} onChange={(event) => { setStatus(event.target.value as any); setPage(1) }}><option value="ALL">Tất cả trạng thái</option><option value="READY_FOR_HUMAN_REVIEW">Sẵn sàng rà soát</option><option value="NEEDS_MORE_EVIDENCE">Cần thêm bằng chứng</option><option value="BLOCKED">Bị chặn</option><option value="APPROVED">Đã duyệt</option><option value="TRANSFERRED">Chờ duyệt (Đã chuyển cấp)</option></select></div>
       <div className="table-scroll"><table className="readiness-table"><thead><tr><th>Hồ sơ / Khách hàng</th><th>Sản phẩm</th><th>Giá trị đề nghị</th><th>Quy trình</th><th>Phản biện</th><th>Trạng thái</th><th>SLA gần nhất</th><th /></tr></thead><tbody>{visibleCases.map((item) => <tr key={item.id} onClick={() => window.location.href = `/cases/${item.id}`}><td><strong>{item.company_name}</strong><span>{item.id} · {item.context.customer_id}</span></td><td><ProductPill product={item.context.product} /></td><td><strong>{new Intl.NumberFormat('vi-VN').format(item.context.requested_amount)} ₫</strong><span>{item.context.metadata.industry}</span></td><td><strong>{item.workflow.route.length} khâu</strong><span>{item.workflow.artifacts.DOCUMENT_COMPLETENESS?.metrics.completeness_ratio ? `${Math.round(item.workflow.artifacts.DOCUMENT_COMPLETENESS.metrics.completeness_ratio * 100)}% tài liệu` : 'Chờ phân tích'}</span></td><td><strong>{CRITIC_LABELS[item.workflow.critic_verdict]}</strong><span>Bắt buộc</span></td><td><FinalStatusPill status={item.workflow.final_status} approvalStatus={item.approval_status} currentRole={item.current_role} /></td><td><strong><Clock3 size={12} /> {item.sla_due}</strong><span>Lần chạy gần nhất</span></td><td><Link className="row-open" to={`/cases/${item.id}`}><ArrowRight size={16} /></Link></td></tr>)}</tbody></table></div>
       {filtered.length > 0 && <div className="readiness-pagination"><span>Hiển thị {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} / {filtered.length} doanh nghiệp</span><div><button disabled={page === 1} onClick={() => setPage((value) => value - 1)}><ChevronLeft size={14} /></button><strong>Trang {page} / {pageCount}</strong><button disabled={page === pageCount} onClick={() => setPage((value) => value + 1)}><ChevronRight size={14} /></button></div></div>}
       {!filtered.length && <div className="empty-state">Không có hồ sơ phù hợp bộ lọc.</div>}
