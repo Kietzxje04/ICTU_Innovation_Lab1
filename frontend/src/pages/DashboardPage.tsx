@@ -1,9 +1,10 @@
-import { AlertTriangle, ArrowRight, Bot, CheckCircle2, ChevronLeft, ChevronRight, Clock3, FileSearch, Search, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Bot, CheckCircle2, ChevronLeft, ChevronRight, Clock3, FileSearch, Search, ShieldCheck, Send } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { CRITIC_LABELS, type FinalStatus, type ProductType } from '../domain'
 import { useReadiness } from '../readiness-context'
 import { FinalStatusPill, ProductPill } from '../components/Status'
+import { useAuth } from '../auth-context'
 
 function Metric({ label, value, note, icon: Icon, tone }: { label: string; value: string; note: string; icon: typeof Bot; tone: string }) {
   return <article className={`readiness-metric ${tone}`}><div><span>{label}</span><strong>{value}</strong><small>{note}</small></div><i><Icon size={21} /></i></article>
@@ -11,11 +12,35 @@ function Metric({ label, value, note, icon: Icon, tone }: { label: string; value
 
 export function DashboardPage() {
   const { cases, dataMode, isLoading, error, refresh } = useReadiness()
+  const { user } = useAuth()
   const [params, setParams] = useSearchParams()
   const [query, setQuery] = useState(params.get('q') ?? '')
   const [product, setProduct] = useState<'ALL' | ProductType>('ALL')
   const [status, setStatus] = useState<'ALL' | FinalStatus>('ALL')
   const [page, setPage] = useState(1)
+
+  const todoCases = useMemo(() => {
+    if (!user) return []
+    const ROLE_ORDER: Record<string, number> = {
+      EMPLOYEE: 0,
+      MANAGER: 1,
+      DIRECTOR: 2,
+    }
+    const userOrder = ROLE_ORDER[user.role_id] ?? -1
+    return cases
+      .filter((item) => {
+        if (item.approval_status === 'APPROVED') return false
+        if (item.workflow.final_status !== 'READY_FOR_HUMAN_REVIEW') return false
+        const currentOrder = item.current_role ? (ROLE_ORDER[item.current_role] ?? 0) : 0
+        return userOrder >= currentOrder
+      })
+      .sort((a, b) => {
+        const aTrans = a.approval_status === 'TRANSFERRED' ? 1 : 0
+        const bTrans = b.approval_status === 'TRANSFERRED' ? 1 : 0
+        return bTrans - aTrans
+      })
+  }, [cases, user])
+
   useEffect(() => { setQuery(params.get('q') ?? ''); setPage(1) }, [params])
   const filtered = useMemo(() => cases.filter((item) => {
     const text = `${item.id} ${item.company_name} ${item.context.customer_id}`.toLowerCase()
