@@ -92,6 +92,7 @@ class LoanApprovalService:
         record.approved_by = user.record.user_id
         record.decision_reason = reason
         record.history = [*record.history, {"action": "APPROVE", "by": user.record.user_id, "role": user.role.role_id, "at": now.isoformat(), "reason": reason}]
+        case.display_status = "Đã duyệt"
         self.session.commit()
         return self.serialize(record)
 
