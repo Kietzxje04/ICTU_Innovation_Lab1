@@ -36,7 +36,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-nexusops}:${POSTGRES_PASSWORD:-nexusops_dev_password}@postgres:5432/${POSTGRES_DB:-nexusops}
       NEXUSOPS_AGENT_ROOT: /workspace/agent
-      NEXUSOPS_RAG_DATA_PATH: /workspace/agent/final_rag_data_normalized_v1.json
+      NEXUSOPS_RAG_DATA_PATH: /workspace/agent/runtime/rag/generated/accepted.jsonl
       NEXUSOPS_CONFIG_DIR: /workspace/agent/configs
       NEXUSOPS_RUNTIME_DIR: /workspace/agent/runtime
       NEXUSOPS_AI_MODE: ${NEXUSOPS_AI_MODE:-live}

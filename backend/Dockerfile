@@ -17,13 +17,15 @@ RUN python -m pip install --upgrade pip setuptools wheel \
     && mkdir -p /workspace/backend/runtime \
                  /workspace/agent/runtime/indexes \
                  /workspace/agent/runtime/traces \
-                 /workspace/agent/runtime/evaluations
+                 /workspace/agent/runtime/evaluations \
+                 /workspace/agent/runtime/rag/generated \
+    && chmod +x /workspace/backend/docker-entrypoint.sh
 
 WORKDIR /workspace/backend
 
 ENV DATABASE_URL=postgresql+psycopg://nexusops:nexusops_dev_password@postgres:5432/nexusops \
     NEXUSOPS_AGENT_ROOT=/workspace/agent \
-    NEXUSOPS_RAG_DATA_PATH=/workspace/agent/final_rag_data_normalized_v1.json \
+    NEXUSOPS_RAG_DATA_PATH=/workspace/agent/runtime/rag/generated/accepted.jsonl \
     NEXUSOPS_CONFIG_DIR=/workspace/agent/configs \
     NEXUSOPS_RUNTIME_DIR=/workspace/agent/runtime \
     NEXUSOPS_AI_MODE=deterministic \
@@ -38,4 +40,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
   CMD python -c "import json, urllib.request; data=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)); assert data['data']['status']=='ok'"
 
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/workspace/backend/docker-entrypoint.sh"]
