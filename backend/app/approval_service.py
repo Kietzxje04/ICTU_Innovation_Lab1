@@ -6,7 +6,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .auth import CurrentUser, next_role, role_can_approve
+from .auth import CurrentUser, next_role, role_at_least, role_can_approve
 from .exceptions import DomainError
 from .models import CaseRecord, LoanApprovalRecord, UserRecord
 from .repositories import AssessmentRepository
@@ -49,7 +49,7 @@ class LoanApprovalService:
         ready, blockers = self._readiness(case_id)
         assigned_role = record.current_role
         is_assigned = (
-            user.role.role_id == assigned_role
+            role_at_least(user.role.role_id, assigned_role)
             and (record.assigned_to is None or record.assigned_to == user.record.user_id)
         )
         can_approve = ready and is_assigned and role_can_approve(user.role.role_id, case.requested_amount)
@@ -83,7 +83,7 @@ class LoanApprovalService:
             return self.serialize(record)
         if not status["ready"]:
             raise DomainError(409, "LOAN_NOT_READY", "Hồ sơ chưa đủ điều kiện phê duyệt", status["blockers"])
-        if user.role.role_id != record.current_role or (record.assigned_to and record.assigned_to != user.record.user_id):
+        if not role_at_least(user.role.role_id, record.current_role) or (record.assigned_to and record.assigned_to != user.record.user_id):
             raise DomainError(403, "APPROVAL_NOT_ASSIGNED", "Hồ sơ chưa được phân công cho người dùng hoặc cấp thẩm quyền này")
         if not role_can_approve(user.role.role_id, case.requested_amount):
             raise DomainError(403, "APPROVAL_LIMIT_EXCEEDED", "Giá trị khoản vay vượt thẩm quyền; vui lòng chuyển hồ sơ lên cấp trên")
@@ -103,7 +103,7 @@ class LoanApprovalService:
             raise DomainError(409, "LOAN_ALREADY_APPROVED", "Hồ sơ đã được phê duyệt")
         if not status["ready"]:
             raise DomainError(409, "LOAN_NOT_READY", "Hồ sơ chưa đủ điều kiện để chuyển cấp", status["blockers"])
-        if user.role.role_id != record.current_role or (record.assigned_to and record.assigned_to != user.record.user_id):
+        if not role_at_least(user.role.role_id, record.current_role) or (record.assigned_to and record.assigned_to != user.record.user_id):
             raise DomainError(403, "TRANSFER_NOT_ASSIGNED", "Chỉ cấp đang xử lý hồ sơ mới được chuyển tiếp")
         target_role = next_role(record.current_role)
         if not target_role:
