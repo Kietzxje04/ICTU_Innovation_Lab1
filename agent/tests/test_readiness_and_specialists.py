@@ -70,7 +70,10 @@ class ReadinessAndSpecialistsTest(unittest.TestCase):
     def test_product_agent_uses_demo_namespace_with_disclaimer(self) -> None:
         artifact = ProductAgent(self.pipeline, demo_mode=True).run(WorkflowState(case=self.overdraft_case()))
         self.assertTrue(artifact.claims)
-        self.assertIn("SYNTHETIC_DEMO_POLICY_NOT_OFFICIAL", artifact.warnings)
+        self.assertEqual("PASS", artifact.status)
+        self.assertEqual([], artifact.warnings)
+        self.assertTrue(artifact.raw["demo_evidence_used"])
+        self.assertIn("SYNTHETIC_DEMO_POLICY_NOT_OFFICIAL", artifact.raw["notices"])
 
     def test_compliance_skips_without_trigger(self) -> None:
         state = WorkflowState(case=self.overdraft_case())
